@@ -4,7 +4,7 @@
  */
 #ifndef T_QUEUE_H
 #define T_QUEUE_H
-#include <cstddef>
+
 class t_queue {
 private:
     std::deque<pair_info> p_q;
@@ -13,21 +13,23 @@ private:
     bool closed;  /* This must be set when we have no more data to add */
 public:
     t_queue () {closed = false;}
-    const bool is_closed () {
+    bool is_closed () {
         return closed;}
-    bool close() {
+    void close() {
         closed = true;}
     const pair_info &front () {
-        if (! p_q.size()) {
-            if (closed) {
-                return no_pair;
-            } else {
-                std::cout << __func__ << " waiting  ";
-                // set variable waiting
-                // wait
-            }
+        return p_q.front();}
+    std::deque<pair_info>::iterator begin() {
+        return p_q.begin(); }
+    std::deque<pair_info>::iterator end() {
+        if (closed || p_q.size())
+            ; /* do nothing, reorder this stuff */
+        else {
+            std::cout << __func__ << " waiting for end";
+            // set variable waiting
+            //wait
         }
-        return p_q.front();
+        return p_q.end();
     }
     size_t size() {
         return p_q.size(); }
