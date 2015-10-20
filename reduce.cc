@@ -16,14 +16,14 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
-#include <mutex>
 #include <unistd.h>
 
 #include <csignal>
 #include <stdexcept>
 #include <queue>
 #include <map>
-
+#include <mutex>
+#include <thread>
 
 #include "fseq.hh"
 #include "t_queue.hh"
@@ -48,16 +48,26 @@ static int usage ( const char *progname, const char *s)
  * and use my own end() operator.
  */
 static void
-from_queue (t_queue &q_f_in, map<string, fseq_prop> &f_map)  {
-    while ( q_f_in.size()) {  // fix this to get next elem
+from_queue (t_queue <pair_info> &q_f_in, map<string, fseq_prop> &f_map)  {
+        
+    while (q_f_in.begin() != q_f_in.end()) {
         pair_info p_i = q_f_in.front();
         cout<< "qsize is " << q_f_in.size() << " cmt is "<< p_i.fseq.get_cmmt() << "\n";
-        q_f_in.pop();
+        q_f_in.pop_front();
         fseq_prop f_p (p_i.fseq);
-        cout << "f_p "<< f_p.ngap << "\n";
-        f_map [p_i.fseq.get_cmmt()] = f_p;
+        cout << "f_p with "<< f_p.ngap << "gaps \n";
+        f_map [p_i.fseq.get_cmmt()] = f_p;        
     }
 }
+
+
+#ifdef want_bg
+/* -------------------------------------------------------------------------------- */
+static void bg (int i, t_queue <pair_info> q_p_i) {
+    cout << "bg hello sizeof " << q_p_i.size() << " and i is "<<i<<"\n";
+    return;
+}
+#endif /* want_bg */
 
 /* ---------------- get_seq_list -----------------------------
  * From a multiple sequence alignment, read the sequences and
@@ -80,7 +90,10 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname) {
         len = fseq_prop(fseq).length;
         infile.seekg (pos);
     }
-    t_queue q_p_i;
+    t_queue <pair_info> q_p_i;
+    //    auto f1 = bind (from_queue, q_p_i, f_map);
+    //    thread t1 (bind (from_queue, q_p_i, f_map));
+    //    thread t1 (from_queue, q_p_i, f_map);
     {
         fseq fseq (infile, len);  // destructor is called here. why ?
         do {
@@ -89,18 +102,16 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname) {
             q_p_i.push_back (pair_info);
         } while (fseq.replace (infile, len));
     }
+    //    auto f1 = std::bind (bg, 2, q_p_i);
+    //    thread t1 = thread (f1);
     infile.close(); /* Stroustrup would just wait until it went out of scope */
-#   ifdef old_old
-    {
-        pair_info nothing;
-        q_p_i.push_front (nothing);
-    }
-#   endif /* old_old */
     q_p_i.close();
 
     from_queue (q_p_i, f_map);  // this is what will go into a thread later
 
+    //    t1.join();
     return EXIT_SUCCESS;
+
 }
 
 /* ---------------- main  ------------------------------------ */
@@ -143,4 +154,3 @@ main (int argc, char *argv[])
 
     return EXIT_SUCCESS;
 }
-
