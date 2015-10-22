@@ -11,6 +11,7 @@
  *   -s discard seeds. 
  */
 
+
 #include <cerrno>
 #include <condition_variable>
 #include <cstdlib>
@@ -28,19 +29,16 @@
 #include <mutex>
 #include <thread>
 
+#include <vector>
+
 #include "fseq.hh"
 #include "t_queue.hh"
 using namespace std;
 
 /* ---------------- structures and constants ----------------- */
-struct pair_info {
-    class fseq_prop fseq_prop;
-    class fseq fs;
-    //#   error make a constructor which puts a lock here
-};
+static const unsigned N_SEQBUF = 512;
 
 /* ---------------- usage ------------------------------------ */
-
 static int usage ( const char *progname, const char *s)
 {
     static const char *u = " infile outfile\n";
@@ -50,17 +48,20 @@ static int usage ( const char *progname, const char *s)
     return EXIT_FAILURE;
 }
 
-static void breaker(const unsigned n) {}
+typedef vector<fseq> v_fs;
 /* ---------------- from_queue -------------------------------
  * better tactics are to use an iterator to read from the queue
  * and use my own end() operator.
  */
 static void
-from_queue (t_queue <fseq> &q_fs, map<string, fseq_prop> &f_map)  {
+from_queue (t_queue <v_fs> &q_fs, map<string, fseq_prop> &f_map)  {
     while (q_fs.alive()) {
-        fseq fs = q_fs.front();
-        fseq_prop f_p (fs);
-        f_map [fs.get_cmmt()] = f_p;
+        v_fs v = q_fs.front();
+        for (v_fs::iterator it = v.begin() ; it != v.end(); it++) {
+            fseq fs = *it;
+            fseq_prop f_p (fs);
+            f_map [fs.get_cmmt()] = f_p;
+        }
         q_fs.pop();
     }
 }
@@ -86,12 +87,25 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname) {
         infile.seekg (pos);
     }
 
-    t_queue <fseq> q_fs;
+    t_queue <v_fs> q_fs;
     thread t1 (from_queue, ref(q_fs), ref(f_map)); // without ref(), it does not compile
     {
         fseq fs;
-        while (fs.fill (infile, len))
-            q_fs.push (fs);
+        unsigned n = 0;
+        unsigned scount = 0;
+        v_fs v_fs;
+        while (fs.fill (infile, len)) {
+            scount++;
+            v_fs.push_back (fs);
+            if (++n == N_SEQBUF) {
+                q_fs.push (v_fs);
+                v_fs.clear();
+                n = 0;
+            }
+        }
+        if (v_fs.size())  /* catch the leftovers */
+            q_fs.push (v_fs);
+        cout << "read "<< scount << " seqs\n";
     }
 
     infile.close(); /* Stroustrup would just wait until it went out of scope */
@@ -134,12 +148,13 @@ main (int argc, char *argv[])
     }
 
 #   undef check_the_map_is_ok
-    /* #   define check_the_map_is_ok     */
+#   define check_the_map_is_ok
 #   ifdef check_the_map_is_ok
-    cout << "dump f_map size: " << f_map.size() << " elem\n";
-    for (map<string,fseq_prop>::iterator it=f_map.begin(); it!=f_map.end(); ++it)
-        cout << it->first << " " << it->second.is_sacred() << "\n";
-#endif
+        cout << "dump f_map:\n";
+        for (map<string,fseq_prop>::iterator it=f_map.begin(); it!=f_map.end(); it++)
+            cout << it->first.substr (0,20) << "\n";
+        cout << "f_map size: "<< f_map.size() << "\n";
+#   endif
 
 
     return EXIT_SUCCESS;
