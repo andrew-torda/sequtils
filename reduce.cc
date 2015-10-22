@@ -50,28 +50,20 @@ static int usage ( const char *progname, const char *s)
     return EXIT_FAILURE;
 }
 
-
+static void breaker(const unsigned n) {}
 /* ---------------- from_queue -------------------------------
  * better tactics are to use an iterator to read from the queue
  * and use my own end() operator.
  */
-static int
-from_queue (t_queue <pair_info> &q_f_in, map<string, fseq_prop> &f_map)  {
-    unsigned n = 0;
-    while (q_f_in.alive()) {
-        //        pair_info p_i = q_f_in.front();  //is this reading too far ?
-//      cerr << __func__ << ": n is " << n++ << " qsize is "
-//      << q_f_in.size() << " cmt is "<< p_i.fseq.get_cmmt() << "\n";
-        fseq fs = q
-        q_f_in.pop();
-        fseq_prop f_p (p_i.fs);
-
-        f_map [p_i.fs.get_cmmt()] = f_p;
+static void
+from_queue (t_queue <fseq> &q_fs, map<string, fseq_prop> &f_map)  {
+    while (q_fs.alive()) {
+        fseq fs = q_fs.front();
+        fseq_prop f_p (fs);
+        f_map [fs.get_cmmt()] = f_p;
+        q_fs.pop();
     }
-    return 0;
 }
-
-#include <chrono>
 
 /* ---------------- get_seq_list -----------------------------
  * From a multiple sequence alignment, read the sequences and
@@ -94,27 +86,17 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname) {
         infile.seekg (pos);
     }
 
-//    t_queue <pair_info> q_p_i;
     t_queue <fseq> q_fs;
-    thread t1 (from_queue, ref(q_p_i), ref(f_map)); // without ref(), it does not compile
+    thread t1 (from_queue, ref(q_fs), ref(f_map)); // without ref(), it does not compile
     {
         fseq fs;
-        int n = 0;
-        while (fs.fill (infile, len)) {
-            //            fseq_prop fsp;
-            //            const pair_info p_i = {fsp, fs};
-            q_p_i.push (fs);
-        }
-#       ifdef old_and_scraggly
-        this_thread::sleep_for(std::chrono::milliseconds(1));;
-        cout << __func__ << ": filling q, n is "<< n++ << "\n";
-#       endif /* old_and_scraggly */
+        while (fs.fill (infile, len))
+            q_fs.push (fs);
     }
 
     infile.close(); /* Stroustrup would just wait until it went out of scope */
-    q_p_i.close();
+    q_fs.close();
 
-    from_queue (q_p_i, f_map);  // this is what will go into a thread later
     t1.join();
     return EXIT_SUCCESS;
 
@@ -152,6 +134,7 @@ main (int argc, char *argv[])
     }
 
 #   undef check_the_map_is_ok
+    /* #   define check_the_map_is_ok     */
 #   ifdef check_the_map_is_ok
     cout << "dump f_map size: " << f_map.size() << " elem\n";
     for (map<string,fseq_prop>::iterator it=f_map.begin(); it!=f_map.end(); ++it)
