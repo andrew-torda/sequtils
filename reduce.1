@@ -1,0 +1,14 @@
+.TH clean_msa local 2015-10-22 local  "local doc"
+.SH NAME
+clean_msa \- clean and filter a multiple sequence alignment
+.SH SYNOPSIS
+.nf
+.B clean_msa [-s] in.msa in_distance_matrix.hat2 out.msa
+.SH DESCRIPTION
+soon.
+.SH NOTES
+We use mafft for multiple sequence alignments, so we start by reading their formats.
+The biggest issue is the ordering of sequences.
+Mafft writes the distance matrix in the same order as its input sequences. It may then reorder the sequences when it writes the alignment, which is what we read. This means that the order in the distance matrix file may not correspond to the order in the alignment.
+
+This is not fatal. It means we have to parse the names written by mafft at the start and use these as lookups.
