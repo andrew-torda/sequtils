@@ -12,6 +12,7 @@
  */
 
 #include <cerrno>
+#include <condition_variable>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -22,14 +23,21 @@
 #include <stdexcept>
 #include <queue>
 #include <map>
+
+#include <atomic>
 #include <mutex>
 #include <thread>
 
 #include "fseq.hh"
 #include "t_queue.hh"
 using namespace std;
+
 /* ---------------- structures and constants ----------------- */
-//typedef class t_queue<class pair_info> pair_queue;
+struct pair_info {
+    class fseq_prop fseq_prop;
+    class fseq fs;
+    //#   error make a constructor which puts a lock here
+};
 
 /* ---------------- usage ------------------------------------ */
 
@@ -47,27 +55,23 @@ static int usage ( const char *progname, const char *s)
  * better tactics are to use an iterator to read from the queue
  * and use my own end() operator.
  */
-static void
+static int
 from_queue (t_queue <pair_info> &q_f_in, map<string, fseq_prop> &f_map)  {
-        
-    while (q_f_in.begin() != q_f_in.end()) {
-        pair_info p_i = q_f_in.front();
-        cout<< "qsize is " << q_f_in.size() << " cmt is "<< p_i.fseq.get_cmmt() << "\n";
-        q_f_in.pop_front();
-        fseq_prop f_p (p_i.fseq);
-        cout << "f_p with "<< f_p.ngap << "gaps \n";
-        f_map [p_i.fseq.get_cmmt()] = f_p;        
+    unsigned n = 0;
+    while (q_f_in.alive()) {
+        //        pair_info p_i = q_f_in.front();  //is this reading too far ?
+//      cerr << __func__ << ": n is " << n++ << " qsize is "
+//      << q_f_in.size() << " cmt is "<< p_i.fseq.get_cmmt() << "\n";
+        fseq fs = q
+        q_f_in.pop();
+        fseq_prop f_p (p_i.fs);
+
+        f_map [p_i.fs.get_cmmt()] = f_p;
     }
+    return 0;
 }
 
-
-#ifdef want_bg
-/* -------------------------------------------------------------------------------- */
-static void bg (int i, t_queue <pair_info> q_p_i) {
-    cout << "bg hello sizeof " << q_p_i.size() << " and i is "<<i<<"\n";
-    return;
-}
-#endif /* want_bg */
+#include <chrono>
 
 /* ---------------- get_seq_list -----------------------------
  * From a multiple sequence alignment, read the sequences and
@@ -78,7 +82,6 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname) {
     string errmsg = __func__;
     size_t len;
     ifstream infile (in_fname);
-
     if (!infile) {
         errmsg += ": opening " + string (in_fname) + ": " + strerror(errno) + "\n";
         throw runtime_error (errmsg);
@@ -90,26 +93,29 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname) {
         len = fseq_prop(fseq).length;
         infile.seekg (pos);
     }
-    t_queue <pair_info> q_p_i;
-    //    auto f1 = bind (from_queue, q_p_i, f_map);
-    //    thread t1 (bind (from_queue, q_p_i, f_map));
-    //    thread t1 (from_queue, q_p_i, f_map);
+
+//    t_queue <pair_info> q_p_i;
+    t_queue <fseq> q_fs;
+    thread t1 (from_queue, ref(q_p_i), ref(f_map)); // without ref(), it does not compile
     {
-        fseq fseq (infile, len);  // destructor is called here. why ?
-        do {
-            fseq_prop fseq_prop(fseq);
-            pair_info pair_info (fseq_prop, fseq);
-            q_p_i.push_back (pair_info);
-        } while (fseq.replace (infile, len));
+        fseq fs;
+        int n = 0;
+        while (fs.fill (infile, len)) {
+            //            fseq_prop fsp;
+            //            const pair_info p_i = {fsp, fs};
+            q_p_i.push (fs);
+        }
+#       ifdef old_and_scraggly
+        this_thread::sleep_for(std::chrono::milliseconds(1));;
+        cout << __func__ << ": filling q, n is "<< n++ << "\n";
+#       endif /* old_and_scraggly */
     }
-    //    auto f1 = std::bind (bg, 2, q_p_i);
-    //    thread t1 = thread (f1);
+
     infile.close(); /* Stroustrup would just wait until it went out of scope */
     q_p_i.close();
 
     from_queue (q_p_i, f_map);  // this is what will go into a thread later
-
-    //    t1.join();
+    t1.join();
     return EXIT_SUCCESS;
 
 }
@@ -120,8 +126,8 @@ main (int argc, char *argv[])
 {
     int c;
     const char *progname = argv[0];
-    cout << "argc is "<< argc << "\n";
     bool sflag = false;
+    
     while ((c = getopt(argc, argv, "s")) != -1) {
         switch (c) {
         case 's':
@@ -144,9 +150,10 @@ main (int argc, char *argv[])
         cerr << e.what();
         return EXIT_FAILURE;
     }
-#   define check_the_map_is_ok 1
+
+#   undef check_the_map_is_ok
 #   ifdef check_the_map_is_ok
-    cout << "f-map has " << f_map.size() << " elem\n";
+    cout << "dump f_map size: " << f_map.size() << " elem\n";
     for (map<string,fseq_prop>::iterator it=f_map.begin(); it!=f_map.end(); ++it)
         cout << it->first << " " << it->second.is_sacred() << "\n";
 #endif
