@@ -15,19 +15,16 @@
 
 class fseq {
 public:
-    fseq () {
-        cmmt = "";
-        seq = "";
-    }
-    fseq (std::ifstream &infile, size_t len_exp);
-    
-    const std::string get_cmmt( void ) { return cmmt ;}
-    const std::string get_seq( void )  { return seq ;}
-    bool replace (std::ifstream &infile, size_t len_exp);
+    fseq (std::ifstream &infile, const size_t len_exp);
+    fseq () {}
+    std::string const get_cmmt( void ) { return cmmt ;}
+    std::string get_seq( void )  { return seq ;}
+    const size_t get_size() { return seq.size() ;}
+    bool fill (std::ifstream &infile, const size_t len_exp);
 private:
-    bool inner_fill (std::ifstream &infile, size_t len_exp);
     std::string cmmt;
     std::string seq;
+    bool inner_fill (std::ifstream &infile, size_t len_exp);
 };
 #ifdef __clang__
 #    pragma clang diagnostic pop
@@ -49,11 +46,12 @@ private:
 #endif /* clang */
 class fseq_prop {
 public:
-    fseq_prop () {length = 0; ngap = 0; sacred = false; keep = false;}
+    fseq_prop () {ngap = 0; sacred = false; keep = false;}
     fseq_prop (fseq&);
-    bool is_sacred() { return sacred;}
-    bool to_keep ()  { return keep;}
-    size_t length;
+    
+    const bool is_sacred() const  { return sacred;}
+    void make_sacred ()    { sacred = true; }
+    const bool to_keep ()  { return keep;}
     unsigned int ngap;
 private:
     bool sacred;
@@ -64,29 +62,10 @@ private:
 #    pragma clang diagnostic pop
 #endif /* clang */
 
-/* ---------------- pair_info --------------------------------
+/* ---------------- fseq_prop --------------------------------
  */
-struct pair_info {
-public:
-    class fseq_prop fseq_prop;
-    class fseq fseq;
-    pair_info (class fseq_prop &f_prop, class fseq &fs) {
-        fseq_prop = f_prop;
-        fseq = fs;
-    }
-    pair_info();
-private:
-};
 
-/*
-pair_info::pair_info()
-{
-    fseq = fseq();
-    fseq_prop =fseq
-    fseq_prop no_prop (no_seq);
-    pair_info (no_prop, no_seq);
-}
 
-*/
+
 
 #endif /* FSEQ_H */

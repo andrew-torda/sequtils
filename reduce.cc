@@ -7,11 +7,11 @@
  *   Read a list of magic sequences, that must be kept.
  *   Read the distance matrix and build a list.
  *   Go back to the MSA, copy entries to keep in to the output file.
- * Options
- *   -s discard seeds. 
+ * TODO
+ *    make a table for parsing the sequence selection choice
+ *    add a method based on the number of gaps
  */
 
-#include <algorithm> /* only for playing with sort. Not really needed */
 #include <cerrno>
 #include <condition_variable>
 #include <cstdlib>
@@ -19,9 +19,8 @@
 #include <fstream>
 #include <iostream>
 #include <unistd.h>
-
-#include <csignal>
-#include <stdexcept>
+#include <random>
+//#include <csignal>
 #include <queue>
 #include <map>
 
@@ -32,19 +31,28 @@
 #include <vector>
 
 #include "distmat_rd.hh"
-
 #include "fseq.hh"
 #include "t_queue.hh"
 using namespace std;
 
 /* ---------------- structures and constants ----------------- */
 static const unsigned N_SEQBUF = 512;
+static const unsigned SEQ_LINE_LEN = 60; /* How many chars per line output seqs */
+static const char    *SEED_STR = "_seed_"; /* mafft marker for seed alignments */
+
+static const unsigned char NOBODY = 0;
+static const unsigned char S_1    = 1;
+static const unsigned char S_2    = 2;
+
+static const int DFLT_SEED = 180077;
+
+static std::default_random_engine r_engine{};
 
 /* ---------------- usage ------------------------------------ */
 static int usage ( const char *progname, const char *s)
 {
     static const char *u
-        = ": [-sv -a sacred_file] mult_seq_align.msa \
+        = ": [-sv -a sacred_file -c choice -e seed] mult_seq_align.msa \
 dist_mat.hat2 outfile.msa n_to_keep\n";
     cerr << progname << s << "\n";
     cerr << progname << u;
@@ -86,25 +94,25 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname, int *ret) {
         *ret = EXIT_FAILURE;
         return;
     }
-        
-    {
-        streampos pos = infile.tellg();
-        fseq fs(infile, 0);     /* get first sequence */
+
+    { /* look at the first sequence, get the length, so we can check on */
+        streampos pos = infile.tellg();             /* subsequent reads */
+        fseq fs(infile, 0);
         len = fs.get_seq().size();
         infile.seekg (pos);
     }
 
     t_queue <v_fs> q_fs;
-    thread t1 (from_queue, ref(q_fs), ref(f_map)); // without ref(), it does not compile
+    thread t1 (from_queue, ref(q_fs), ref(f_map));
     {
         fseq fs;
         unsigned n = 0;
         unsigned scount = 0;
         v_fs v_fs;
         while (fs.fill (infile, len)) {
-            scount++;
-            v_fs.push_back (fs);
-            if (++n == N_SEQBUF) {
+            scount++;                 /* We put packages of N_SEQBUF */
+            v_fs.push_back (fs);      /* into the queue, rather than */
+            if (++n == N_SEQBUF) {    /* sequences one at a time */
                 q_fs.push (v_fs);
                 v_fs.clear();
                 n = 0;
@@ -133,7 +141,7 @@ get_sacred (const char *sacred_fname, vector<string> &v_sacred, int *sacred_ret)
     ifstream sac_file (sacred_fname);
     string s;
     if (!sac_file) {
-        cerr << __func__ << ": opening " << string (sacred_fname)
+        cerr << __func__ << ": opening " << sacred_fname
              << ": " << strerror(errno) << "\n";
         *sacred_ret = EXIT_FAILURE;
         return;
@@ -143,10 +151,12 @@ get_sacred (const char *sacred_fname, vector<string> &v_sacred, int *sacred_ret)
     *sacred_ret = EXIT_SUCCESS;
     sac_file.close();
     v_sacred.shrink_to_fit();
-    return;
 }
+
 static void breaker () {}
 /* ---------------- check_lists ------------------------------
+ * Make sure that the sequences given in the distance file
+ * exist in the alignment file, as store in f_map.
  */
 static const int
 check_lists ( const map<string, fseq_prop> &f_map, vector<string> &v_cmt)
@@ -176,7 +186,182 @@ mark_sacred (map<string, fseq_prop> &f_map, vector<string> &v_sacred)
         }
         f_map[*it].make_sacred();
     }
-    return EXIT_SUCCESS;
+    return ret;
+}
+
+/* ---------------- decider functions ------------------------
+ * We have several possibilities for deciding which member of a
+ * pair to delete. We use one of these, as pointed to by a
+ * function pointer.
+ */
+typedef unsigned char decider_f (const fseq_prop&, const fseq_prop&);
+
+static unsigned char
+always_first (const fseq_prop &f1, const fseq_prop &f2)
+{
+    return S_1;
+}
+
+static unsigned char
+always_second (const fseq_prop &f1, const fseq_prop &f2)
+{
+    return S_2;
+}
+static unsigned char
+more_gaps (const fseq_prop &f1, const fseq_prop &f2)
+{
+    cerr << "f1 and f2 gaps, " << f1.ngap << " "<< f2.ngap<<"\n";
+    if (f1.ngap >= f2.ngap)
+        return S_1;
+    return S_2;
+}
+
+static unsigned char
+decide_random(const fseq_prop &f1, const fseq_prop &f2)
+{
+    uniform_int_distribution<int> d{0,1};
+    int r = d(r_engine);
+    if (r == 1)
+        return S_1;
+    return S_2;
+}
+
+static unsigned char
+decide_longer(const fseq_prop &f1, const fseq_prop &f2)
+{
+    breaker();
+    if (f1.ngap < f2.ngap)
+        return S_2;
+    return S_1;
+}
+
+static decider_f *
+set_up_choice (const string &s)
+{
+    map <string, decider_f*> choice_map;
+    choice_map["first"]  = always_first;  /* Table of keywords and */
+    choice_map["second"] = always_second; /* function pointers */
+    choice_map["random"] = decide_random;
+    choice_map["longer"] = decide_longer;
+
+    const map<string, decider_f *>::iterator missing = choice_map.end();
+    const map<string, decider_f *>::iterator ent = choice_map.find(s);
+    if (ent == missing) {
+        cerr << "random choice type " << s << " not known. Try one of \n";
+        map<string, decider_f *>::iterator it = choice_map.begin();
+        for (; it != missing; it++)
+            cout << it->first << " ";
+        cout << endl;
+        return nullptr;
+    }
+    
+    return ent->second;
+}
+
+/* ---------------- choose_seq   -----------------------------
+ * Given two seq props, choose one for deletion. Return 1 or 2
+ * or 0 for nobody.
+ * We will have to expand this to consider different options.
+ */
+static unsigned char
+choose_seq (const fseq_prop &f1, const fseq_prop &f2, const decider_f *choice)
+{
+    if (f1.is_sacred() && f2.is_sacred())
+        return NOBODY;
+    if (f1.is_sacred())
+        return S_2;
+    else if(f2.is_sacred())
+        return S_1;
+    return (choice (f1, f2));
+}
+
+/* ---------------- remove_seq -------------------------------
+ * Walk down the list of distances, deciding who to delete.
+ */
+static void
+remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
+            vector<dist_entry> &v_dist, const unsigned to_keep,
+            const decider_f *choice)
+{
+    vector<dist_entry>::iterator it = v_dist.begin();
+    unsigned kept = f_map.size();
+    for (; f_map.size() > to_keep; it++) {
+        if (it == v_dist.end())
+            break;
+        string &s1 = v_cmt[it->ndx1];
+        string &s2 = v_cmt[it->ndx2];
+        const map<string, fseq_prop>::iterator missing = f_map.end();
+        const map<string, fseq_prop>::iterator f1 = f_map.find(s1);
+        const map<string, fseq_prop>::iterator f2 = f_map.find(s2);
+        if ((f1 == missing) || (f2 == missing))
+            continue;
+        const unsigned char c = choose_seq(f1->second, f2->second, choice);
+        switch (c) {
+        case NOBODY:
+            continue;           break;
+        case S_1:
+            f_map.erase(s1);    break;
+        case S_2:
+            f_map.erase(s2);    break;
+        }
+    }
+}
+
+/* ---------------- remove_seeds -----------------------------
+ */
+static void
+remove_seeds (map<string, fseq_prop> &f_map, vector<string> &v_cmt)
+{
+    vector<string>::iterator it = v_cmt.begin();
+    for (; it != v_cmt.end(); it++)
+        if (it->find (SEED_STR) != string::npos)
+            f_map.erase (*it);
+}
+
+/* ---------------- write_kept_seq ---------------------------
+ * This is the final writing of sequences that we want to keep.
+ */
+static int
+write_kept_seq (const char *in_fname, const char *out_fname,
+                map<string, fseq_prop> &f_map)
+{
+    ifstream in_file (in_fname);
+    fseq fs;
+    if (! in_file) {
+        cerr << __func__ << "open fail on " << in_fname << "\n";
+        return EXIT_FAILURE;
+    }
+    ofstream out_file (out_fname);
+    if ( ! out_file) {
+        cerr << __func__ << ": opening " << out_fname  << ": " << strerror(errno) << "\n";
+        return EXIT_FAILURE;
+    }
+
+    while (fs.fill (in_file, 0)) {
+        const map<string, fseq_prop>::iterator missing = f_map.end();
+        const map<string, fseq_prop>::iterator f1 = f_map.find(fs.get_cmmt());
+        if (f1 == missing)
+            cout << "not writing "<< fs.get_cmmt().substr(0,20) << std::endl;
+        else {
+            out_file << fs.get_cmmt() << std::endl;
+            unsigned done = 0, to_go;
+            string s = fs.get_seq();
+            to_go = s.length();
+            while (to_go) {
+                size_t this_line = SEQ_LINE_LEN;
+                if (SEQ_LINE_LEN > to_go)
+                    this_line = to_go;
+                out_file << s.substr (done, this_line)<< std::endl;
+                done += this_line;
+                to_go -= this_line;
+            }
+        }
+
+    }
+
+    in_file.close();
+    out_file.close();
+    return (EXIT_SUCCESS);
 }
 
 /* ---------------- main  ------------------------------------ */
@@ -189,10 +374,16 @@ main (int argc, char *argv[])
     const char *progname = argv[0];
     const char *sacred_fname = nullptr;
     bool eflag = false;
-    while ((c = getopt(argc, argv, "a:sv")) != -1) {
+    string choice_name, seed_str;
+    int seed;
+    while ((c = getopt(argc, argv, "a:c:e:sv")) != -1) {
         switch (c) {
         case 'a':
-            sacred_fname = optarg;                                     break;     
+            sacred_fname = optarg;                                     break;
+        case 'c':
+            choice_name += optarg;                                     break;
+        case 'e':
+            seed_str = optarg;                                         break;
         case 's':
             seedflag = true;                                           break;
         case 'v':
@@ -206,21 +397,31 @@ main (int argc, char *argv[])
     if (eflag)
         return (usage(progname, ""));
 
-    optind++;
-    if ((argc - optind) < 5)
+    if ((argc - optind) < 4)
         usage (progname, " too few arguments");
-    const char *in_fname    = argv[++optind];
-    const char *dist_fname  = argv[++optind];
-    const char *out_fname   = argv[++optind];
-    const char *to_keep_str = argv[++optind];
-    const unsigned to_keep  = stoul (to_keep_str);
-
+    const char *in_fname     = argv[optind++];
+    const char *dist_fname   = argv[optind++];
+    const char *out_fname    = argv[optind++];
+    const char *to_keep_str  = argv[optind++];
+    const unsigned n_to_keep = stoul (to_keep_str);
+    if (seed_str.length())
+        seed = stoi (seed_str);
+    else
+        seed = DFLT_SEED;
+    r_engine.seed( seed);
     cout << progname << ": using " << in_fname << " as MSA. "
          << dist_fname << " as distance matrix. Writing to " << out_fname << "\n";
+
 
     map<string, fseq_prop> f_map;
     int gsl_ret;
     thread gsl_thr (get_seq_list, ref(f_map), in_fname, &gsl_ret);
+
+    decider_f *choice = always_first;
+
+    if (choice_name.size())
+        if ((choice = set_up_choice(choice_name)) == nullptr) {
+            gsl_thr.join(); return EXIT_FAILURE;}
 
     vector<string> v_sacred;
     int sacred_ret;
@@ -229,36 +430,38 @@ main (int argc, char *argv[])
         sac_thr = thread (get_sacred, sacred_fname, ref(v_sacred), &sacred_ret);
 
     vector<dist_entry> v_dist;
-    {
-        vector<string> v_cmt;
-        try {
-            read_distmat (dist_fname, v_dist, v_cmt) ;
-        } catch (runtime_error &e) {
-            cerr << e.what();  return EXIT_FAILURE; }
 
-        gsl_thr.join();
-        if (gsl_ret != EXIT_SUCCESS) {
-            cerr << __func__ << " error in get_seq_list\n";
-            return EXIT_FAILURE;
-        }
-        if (check_lists (f_map, v_cmt) == EXIT_FAILURE)
-            return EXIT_FAILURE;
-    } // v_cmt goes out of scope and is cleared
-    
+    vector<string> v_cmt;
+    try {
+        read_distmat (dist_fname, v_dist, v_cmt) ;
+    } catch (runtime_error &e) {
+        cerr << e.what();  return EXIT_FAILURE; }
+
+    gsl_thr.join();
+    if (gsl_ret != EXIT_SUCCESS) {
+        cerr << __func__ << " error in get_seq_list\n";
+        return EXIT_FAILURE;
+    }
+
+    if (check_lists (f_map, v_cmt) == EXIT_FAILURE)
+        return EXIT_FAILURE;
+    if (seedflag)
+        remove_seeds (f_map, v_cmt);
+
     if (sacred_fname) {
         sac_thr.join();
         if (sacred_ret != EXIT_SUCCESS) {
             cerr << __func__ << " err reading sacred file from "<< sacred_fname;
             return EXIT_FAILURE;
         }
+        if (mark_sacred (f_map, v_sacred) != EXIT_SUCCESS)
+            return EXIT_FAILURE;
     }
-    if (mark_sacred (f_map, v_sacred) != EXIT_SUCCESS)
+
+    remove_seq (f_map, v_cmt, v_dist, n_to_keep, choice);
+    if (write_kept_seq (in_fname, out_fname, f_map) != EXIT_SUCCESS)
         return EXIT_FAILURE;
-    v_sacred.clear();
-    cout << "now compare the lists from the two files\n";
 
-
-    
 #   undef check_the_map_is_ok
 #   define check_the_map_is_ok
 #   ifdef check_the_map_is_ok
@@ -268,6 +471,5 @@ main (int argc, char *argv[])
         cout << "f_map size: "<< f_map.size() << "\n";
 #   endif
 
-        
     return EXIT_SUCCESS;
 }

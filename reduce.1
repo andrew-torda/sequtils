@@ -3,12 +3,39 @@
 clean_msa \- clean and filter a multiple sequence alignment
 .SH SYNOPSIS
 .nf
-.B clean_msa [-s] in.msa in_distance_matrix.hat2 out.msa
+.B clean_msa \fB[\fP\fB-sv\fP\fB][\fB\-a \fI\sacred_file\fR ] in.msa in_distance_matrix.hat2 out.msa
 .SH DESCRIPTION
 soon.
+.SH OPTIONS
+.TP 7
+\fB-a\fP \fIfilename\fP
+\fIfilename\P is a list of sequences which are sacred and should not be deleted.
+
+.TP 7
+.BI \-c " method"
+From pairs of sequences, we have to pick which to delete. This is done according to
+. Which can be one of
+.IP first 14
+From each pair, choose the first.
+.IP second 14
+From each pair, choose the second.
+.IP random 14
+From each pair, choose one pseudo-randomly.
+.BI\-e " seed"
+If using the random choice method for picking sequences to keep, set the random seed with this option. If you do not do so, there will be a default value so you will get reproducibility from run to run.
+.TP 7
+\fB-s\fP
+Sequences containing "seed" will be removed. Mafft uses these as constraints on the alignment. They usually come from structural alignments.
+.TP 7
+\fB-v\fP
+Be more verbose. Multiple options increase verbosity.
 .SH NOTES
 We use mafft for multiple sequence alignments, so we start by reading their formats.
 The biggest issue is the ordering of sequences.
 Mafft writes the distance matrix in the same order as its input sequences. It may then reorder the sequences when it writes the alignment, which is what we read. This means that the order in the distance matrix file may not correspond to the order in the alignment.
 
 This is not fatal. It means we have to parse the names written by mafft at the start and use these as lookups.
+.SS Threads
+There are a few threads here. Input files are read concurrently. This is a good idea. The first time sequences are read, they are gobbled up and put in a queue where they are processed, gaps counted and put into a map object. This was a bad idea. It does not save any time.
+.SS Storage
+Sequences are read up and indexed by their comment field in a map structure. This was not such a good idea. It might have been better to use a simple array and helper arrays to allow us to handle files with re-ordered sequences.
