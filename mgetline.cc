@@ -16,7 +16,7 @@ mgetline ( std::ifstream& is, std::string& str)
     size_t ibuf = 0;
     size_t n    = 0;   /* the count that we return */
     char buf[BSIZ];
-    str.erase();
+    str.clear();
     int c = is.get();
     while ((c != EOF) && (c != '\n')) {
         n++;

@@ -1,5 +1,5 @@
 /* 10 oct 2015 */
-static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.2 2015/10/28 08:06:03 torda Exp torda $";
+static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.3 2015/10/30 15:07:17 torda Exp torda $";
 
 #include <csignal>
 #include <fstream>
@@ -36,8 +36,8 @@ static void breaker(){}
  */
 bool
 fseq::fill (ifstream &infile, const size_t len_exp) {
-    seq.erase();
-    cmmt.erase();
+    seq.clear();
+    cmmt.clear();
 
     string errmsg = __func__;
     if (! mgetline(infile, cmmt))

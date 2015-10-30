@@ -71,8 +71,7 @@ typedef vector<fseq> v_fs;
  */
 static void
 from_queue (t_queue <v_fs> &q_fs, map<string, fseq_prop> &f_map)  {
-    unsigned i = 0;
-        while (q_fs.alive()) {
+    while (q_fs.alive()) {
         v_fs v = q_fs.front();
         q_fs.pop();
         for (v_fs::iterator it = v.begin() ; it != v.end(); it++) {
@@ -81,16 +80,6 @@ from_queue (t_queue <v_fs> &q_fs, map<string, fseq_prop> &f_map)  {
             f_map [fs.get_cmmt()] = f_p;
         }
     }
-
-#   ifdef use_one_seq
-    while (q_fs.alive()) {
-        fseq fs = q_fs.front();
-//      cerr<< __func__<< " got "<< fs.get_cmmt().substr(0,10) << "\n";
-        q_fs.pop();
-        fseq_prop f_p (fs);
-        f_map[fs.get_cmmt()] = f_p;
-    }
-#   endif /* use_one_seq */
 }
 
 /* ---------------- get_seq_list -----------------------------
@@ -131,6 +120,7 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname, int *ret) {
             if (++n == N_SEQBUF) {         /* sequences one at a */
                 q_fs.push (tmp_v_fs);
                 n = 0;
+                tmp_v_fs.clear();
             }
         }
         if (tmp_v_fs.size())                              /* catch the leftovers */
@@ -427,8 +417,9 @@ main (int argc, char *argv[])
     else
         seed = DFLT_SEED;
     r_engine.seed( seed);
-    cout << progname << ": using " << in_fname << " as MSA. "
-         << dist_fname << " as distance matrix. Writing to " << out_fname << "\n";
+    cout << progname << ": using " << in_fname << " as multiple seq alignment.\nDistance matrix from "
+         << dist_fname << " as distance matrix.\nWriting to " << out_fname
+         << "\nKeeping " << n_to_keep << " of the sequences\n";
 
 
     map<string, fseq_prop> f_map;

@@ -10,7 +10,7 @@ OBJS = clean_msa.o distmat_rd.o fseq.o mgetline.o
 
 #CXX=/usr/local/zbhtools/gcc/gcc-5.1.0/bin/g++
 CXX=g++
-CXXFLAGS=-std=c++11 -g -O3 -pg -pedantic -lpthread #-fsanitize=address #-fsanitize=thread -pie -fPIC -fPIE
+CXXFLAGS=-std=c++11 -g -O3 -pedantic -lpthread #-fsanitize=address #-fsanitize=thread -pie -fPIC -fPIE
 
 #CXX=clang++
 #CXXFLAGS=-g -Weverything -pedantic -std=c++11 -lpthread 
