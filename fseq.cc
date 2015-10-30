@@ -1,5 +1,5 @@
 /* 10 oct 2015 */
-static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.1 2015/10/20 13:14:20 torda Exp torda $";
+static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.2 2015/10/28 08:06:03 torda Exp torda $";
 
 #include <csignal>
 #include <fstream>
@@ -9,7 +9,10 @@ static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.1 2015/10/2
 #include <stdexcept>
 
 #include "fseq.hh"
+#include "mgetline.hh"
+
 using namespace std;
+
 /* we split this in two parts
  * 1. the comment
  * 2. the sequence.
@@ -24,7 +27,7 @@ static const char COMMENT = '>';
 static const char *NOSTRING = "";
 static const char GAP = '-';
 static const unsigned N_SEQBUF = 100;
-
+static void breaker(){}
 /* ---------------- fseq::fill  ------------------------------
  * This is the real initialisor/constructor for an fseq.
  * strangely, I used to use temporary variables for the strings,
@@ -33,10 +36,11 @@ static const unsigned N_SEQBUF = 100;
  */
 bool
 fseq::fill (ifstream &infile, const size_t len_exp) {
+    seq.erase();
+    cmmt.erase();
+
     string errmsg = __func__;
-    cmmt = NOSTRING;
-    seq  = NOSTRING;
-    if (! getline(infile, cmmt))
+    if (! mgetline(infile, cmmt))
         return false;   /* Not an error. Most likely end of file */
     if (cmmt[0] != COMMENT) {
         errmsg += + "no comment line starting "+ cmmt.substr(0,40);
@@ -44,8 +48,7 @@ fseq::fill (ifstream &infile, const size_t len_exp) {
     }
     {
         streampos pos;
-        string t;
-        while ( getline (infile, t)) {
+        for (string t; mgetline(infile, t); ) {
             if (t[0] == COMMENT) { /* Start of next sequence */
                 infile.seekg(pos); /* Go back to before we tried reading */
                 break;
@@ -54,6 +57,7 @@ fseq::fill (ifstream &infile, const size_t len_exp) {
             pos = infile.tellg();
         }
     }
+    
     if (! seq.length() > 0) {
         cerr << "no sequence found for " << cmmt << "\n";
         return false;

@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <exception> // Probably also only during debugging
 #include <stdexcept>
 #include <sstream>
 #include <fstream>
@@ -32,6 +33,7 @@
 #include <vector>
 
 #include "distmat_rd.hh"
+#include "mgetline.hh"
 using namespace std;
 
 /* ---------------- structures and constants ----------------- */
@@ -44,7 +46,6 @@ static const char *NDX_STR = ". =";
 static unsigned
 read_info (ifstream &infile, const char *dist_fname){
     stringstream errmsg (string (__func__));
-    string t;
     errmsg << ": reading from " + string (dist_fname) + string (", ");
     unsigned i, nseq;
     infile >> i;
@@ -54,11 +55,10 @@ read_info (ifstream &infile, const char *dist_fname){
         return 0;
     }
     infile >> nseq;  // How do i check if this worked ?
-    float f;
-    infile >> f;
-    if ( !getline (infile, t)) { /* just gets us to end of line */
-        errmsg << "reading float value " << t;
-        throw runtime_error (errmsg.str());
+    {
+        string junk;
+        mgetline (infile, junk); /* Once gets us over the newline */
+        mgetline (infile, junk); /* there is a float we do not use */
     }
     return nseq;
 }
@@ -102,7 +102,7 @@ read_mafft_seq (ifstream &infile, vector<string> &v_cmt,
     struct int_comment i_c;
     unsigned n = 0;
     for (unsigned i = 1; i <= nseq; i++) {  /* starting from 1 */
-        if (!getline (infile, t)) {         /* allows the check below */
+        if (!mgetline (infile, t)) {         /* allows the check below */
             std::cerr << errmsg << "error reading line\n";
             return EXIT_FAILURE;
         }
@@ -116,7 +116,7 @@ read_mafft_seq (ifstream &infile, vector<string> &v_cmt,
     return EXIT_SUCCESS;
 }
 
-
+static void breaker (){}
 /* ---------------- read_mafft_dist --------------------------
  */
 static const int
@@ -127,9 +127,14 @@ read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
     errmsg << ": reading from " << string(dist_fname) << "\n";
     for (unsigned i = 0; i < nseq ; i++) {
         for (unsigned j = i+1; j < nseq; j++) {
-            struct dist_entry d_e;
+            struct dist_entry d_e; /* xxxxxxxxxx */
             float f;
-            infile >> f;
+            //            infile >> f;
+            size_t z = 0;
+            char s[20];
+            infile >> s;
+            f = stof (s, &z);
+            //            cout << "i j s "<< i << " " << j << " " << s << "\n";
             d_e = {f, i, j};
             v_dist.push_back(d_e);
         }
@@ -163,7 +168,6 @@ read_distmat (const char *dist_fname, vector<dist_entry> &v_dist, vector<string>
         errmsg += "failed reading info";
         throw runtime_error (errmsg);
     }
-
     if (read_mafft_seq (infile, v_cmt, dist_fname, nseq) == EXIT_FAILURE)
         return EXIT_FAILURE;
     v_cmt.shrink_to_fit();

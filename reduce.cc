@@ -8,8 +8,10 @@
  *   Read the distance matrix and build a list.
  *   Go back to the MSA, copy entries to keep in to the output file.
  * TODO
- *    make a table for parsing the sequence selection choice
- *    add a method based on the number of gaps
+ * - very important - when we are given a bad sequence, the whole thing crashes !
+ *   shut the queue down on error.
+ * - add a check when reading sequences for HHHHH. If one is found, print out a warning.
+ * - add an option to remove all gap characters and rewrite the sequences
  */
 
 #include <cerrno>
@@ -20,7 +22,6 @@
 #include <iostream>
 #include <unistd.h>
 #include <random>
-//#include <csignal>
 #include <queue>
 #include <map>
 
@@ -30,8 +31,10 @@
 
 #include <vector>
 
+//#include "delay.hh" /* Only during debugging */
 #include "distmat_rd.hh"
 #include "fseq.hh"
+#include "mgetline.hh"
 #include "t_queue.hh"
 using namespace std;
 
@@ -47,6 +50,7 @@ static const unsigned char S_2    = 2;
 static const int DFLT_SEED = 180077;
 
 static std::default_random_engine r_engine{};
+static void breaker(){}
 
 /* ---------------- usage ------------------------------------ */
 static int usage ( const char *progname, const char *s)
@@ -60,13 +64,15 @@ dist_mat.hat2 outfile.msa n_to_keep\n";
 }
 
 typedef vector<fseq> v_fs;
+
 /* ---------------- from_queue -------------------------------
  * We have bundles of sequences in a vector. Pull each from
  * the queue
  */
 static void
 from_queue (t_queue <v_fs> &q_fs, map<string, fseq_prop> &f_map)  {
-    while (q_fs.alive()) {
+    unsigned i = 0;
+        while (q_fs.alive()) {
         v_fs v = q_fs.front();
         q_fs.pop();
         for (v_fs::iterator it = v.begin() ; it != v.end(); it++) {
@@ -75,6 +81,16 @@ from_queue (t_queue <v_fs> &q_fs, map<string, fseq_prop> &f_map)  {
             f_map [fs.get_cmmt()] = f_p;
         }
     }
+
+#   ifdef use_one_seq
+    while (q_fs.alive()) {
+        fseq fs = q_fs.front();
+//      cerr<< __func__<< " got "<< fs.get_cmmt().substr(0,10) << "\n";
+        q_fs.pop();
+        fseq_prop f_p (fs);
+        f_map[fs.get_cmmt()] = f_p;
+    }
+#   endif /* use_one_seq */
 }
 
 /* ---------------- get_seq_list -----------------------------
@@ -94,7 +110,6 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname, int *ret) {
         *ret = EXIT_FAILURE;
         return;
     }
-
     { /* look at the first sequence, get the length, so we can check on */
         streampos pos = infile.tellg();             /* subsequent reads */
         fseq fs(infile, 0);
@@ -104,28 +119,27 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname, int *ret) {
 
     t_queue <v_fs> q_fs;
     thread t1 (from_queue, ref(q_fs), ref(f_map));
+
     {
         fseq fs;
         unsigned n = 0;
         unsigned scount = 0;
-        v_fs v_fs;
+        v_fs tmp_v_fs;
         while (fs.fill (infile, len)) {
-            scount++;                 /* We put packages of N_SEQBUF */
-            v_fs.push_back (fs);      /* into the queue, rather than */
-            if (++n == N_SEQBUF) {    /* sequences one at a time */
-                q_fs.push (v_fs);
-                v_fs.clear();
+            scount++;                      /* Put packages of N_SEQBUF */
+            tmp_v_fs.push_back (fs);      /* into the queue, rather than */
+            if (++n == N_SEQBUF) {         /* sequences one at a */
+                q_fs.push (tmp_v_fs);
                 n = 0;
             }
         }
-        if (v_fs.size())                              /* catch the leftovers */
-            q_fs.push (v_fs);
+        if (tmp_v_fs.size())                              /* catch the leftovers */
+            q_fs.push (tmp_v_fs);
         cout << "read "<< scount << " seqs\n";
     }
 
     infile.close(); /* Stroustrup would just wait until it went out of scope */
     q_fs.close();
-
     t1.join();
     *ret = EXIT_SUCCESS;
 }
@@ -146,14 +160,13 @@ get_sacred (const char *sacred_fname, vector<string> &v_sacred, int *sacred_ret)
         *sacred_ret = EXIT_FAILURE;
         return;
     }
-    while (getline (sac_file, s))
+    while (mgetline (sac_file, s))
         v_sacred.push_back (s);
-    *sacred_ret = EXIT_SUCCESS;
     sac_file.close();
     v_sacred.shrink_to_fit();
+    *sacred_ret = EXIT_SUCCESS;
 }
 
-static void breaker () {}
 /* ---------------- check_lists ------------------------------
  * Make sure that the sequences given in the distance file
  * exist in the alignment file, as store in f_map.
@@ -229,7 +242,6 @@ decide_random(const fseq_prop &f1, const fseq_prop &f2)
 static unsigned char
 decide_longer(const fseq_prop &f1, const fseq_prop &f2)
 {
-    breaker();
     if (f1.ngap < f2.ngap)
         return S_2;
     return S_1;
@@ -264,7 +276,7 @@ set_up_choice (const string &s)
  * We will have to expand this to consider different options.
  */
 static unsigned char
-choose_seq (const fseq_prop &f1, const fseq_prop &f2, const decider_f *choice)
+choose_seq (const fseq_prop &f1, const fseq_prop &f2, decider_f *choice)
 {
     if (f1.is_sacred() && f2.is_sacred())
         return NOBODY;
@@ -281,7 +293,7 @@ choose_seq (const fseq_prop &f1, const fseq_prop &f2, const decider_f *choice)
 static void
 remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
             vector<dist_entry> &v_dist, const unsigned to_keep,
-            const decider_f *choice)
+            decider_f *choice)
 {
     vector<dist_entry>::iterator it = v_dist.begin();
     unsigned kept = f_map.size();
@@ -340,9 +352,7 @@ write_kept_seq (const char *in_fname, const char *out_fname,
     while (fs.fill (in_file, 0)) {
         const map<string, fseq_prop>::iterator missing = f_map.end();
         const map<string, fseq_prop>::iterator f1 = f_map.find(fs.get_cmmt());
-        if (f1 == missing)
-            cout << "not writing "<< fs.get_cmmt().substr(0,20) << std::endl;
-        else {
+        if (f1 != missing) {
             out_file << fs.get_cmmt() << std::endl;
             unsigned done = 0, to_go;
             string s = fs.get_seq();
@@ -364,6 +374,12 @@ write_kept_seq (const char *in_fname, const char *out_fname,
     return (EXIT_SUCCESS);
 }
 
+static void
+our_terminate (void) {
+    breaker();
+    exit (EXIT_FAILURE);
+}
+
 /* ---------------- main  ------------------------------------ */
 int
 main (int argc, char *argv[])
@@ -376,6 +392,8 @@ main (int argc, char *argv[])
     bool eflag = false;
     string choice_name, seed_str;
     int seed;
+ 
+    /*    set_terminate(our_terminate); */
     while ((c = getopt(argc, argv, "a:c:e:sv")) != -1) {
         switch (c) {
         case 'a':
@@ -417,24 +435,27 @@ main (int argc, char *argv[])
     int gsl_ret;
     thread gsl_thr (get_seq_list, ref(f_map), in_fname, &gsl_ret);
 
+    vector<string> v_sacred;
+    int sacred_ret;
+    thread sac_thr;
+    if (sacred_fname)
+        sac_thr = thread (get_sacred, sacred_fname, ref(v_sacred), &sacred_ret);    
+
     decider_f *choice = always_first;
 
     if (choice_name.size())
         if ((choice = set_up_choice(choice_name)) == nullptr) {
             gsl_thr.join(); return EXIT_FAILURE;}
 
-    vector<string> v_sacred;
-    int sacred_ret;
-    thread sac_thr;
-    if (sacred_fname)
-        sac_thr = thread (get_sacred, sacred_fname, ref(v_sacred), &sacred_ret);
 
     vector<dist_entry> v_dist;
 
     vector<string> v_cmt;
+
     try {
         read_distmat (dist_fname, v_dist, v_cmt) ;
     } catch (runtime_error &e) {
+        gsl_thr.join(); sac_thr.join();
         cerr << e.what();  return EXIT_FAILURE; }
 
     gsl_thr.join();
@@ -463,7 +484,6 @@ main (int argc, char *argv[])
         return EXIT_FAILURE;
 
 #   undef check_the_map_is_ok
-#   define check_the_map_is_ok
 #   ifdef check_the_map_is_ok
         cout << "dump f_map:\n";
         for (map<string,fseq_prop>::iterator it=f_map.begin(); it!=f_map.end(); it++)

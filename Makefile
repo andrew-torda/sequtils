@@ -4,11 +4,13 @@
 .POSIX:
 
 EXE_NAME=clean_msa
-OBJS = clean_msa.o delay.o distmat_rd.o fseq.o
+OBJS = clean_msa.o distmat_rd.o fseq.o mgetline.o
+
+# During debugging, one might want to put delays in and add delay.o to the list
 
 #CXX=/usr/local/zbhtools/gcc/gcc-5.1.0/bin/g++
 CXX=g++
-CXXFLAGS=-std=c++11 -g -pedantic -lpthread #-fsanitize=thread -pie -fPIC -fPIE
+CXXFLAGS=-std=c++11 -g -O3 -pg -pedantic -lpthread #-fsanitize=address #-fsanitize=thread -pie -fPIC -fPIE
 
 #CXX=clang++
 #CXXFLAGS=-g -Weverything -pedantic -std=c++11 -lpthread 
@@ -29,15 +31,22 @@ tags:
 
 valgrind:
 	make $(EXE_NAME)
-	valgrind --leak-check=full  $(EXE_NAME) -v example/test.fa example/shorter.fa.hat2 x 3
+	(cd /work/torda/people/inari/2jkf_oct15/merge;\
+	valgrind --leak-check=full  \
+        /home/torda/c/seq_work/clean_msa -a sacred -c first \
+            merge_align.fa merge.fa.hat2 reduced_100.fa 100)
 
 helgrind:
 	make $(EXE_NAME)
-	valgrind --tool=helgrind $(EXE_NAME) example/big.fa x
+	(cd /work/torda/people/inari/2jkf_oct15/merge;\
+	valgrind --tool=helgrind \
+           /home/torda/c/seq_work/clean_msa -a sacred -c first \
+            merge_align.fa merge.fa.hat2 reduced_100.fa 100)
+#	valgrind --tool=helgrind $(EXE_NAME) example/big.fa x
 
 # DO NOT DELETE
 
-clean_msa.o: fseq.hh t_queue.hh distmat_rd.hh
+clean_msa.o: distmat_rd.hh fseq.hh mgetline.hh t_queue.hh
 delay.o: delay.hh
-distmat_rd.o: distmat_rd.hh
-fseq.o: fseq.hh
+distmat_rd.o: distmat_rd.hh mgetline.hh
+fseq.o: fseq.hh mgetline.hh
