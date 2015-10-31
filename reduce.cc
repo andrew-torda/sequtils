@@ -256,7 +256,7 @@ set_up_choice (const string &s)
         cout << endl;
         return nullptr;
     }
-    
+
     return ent->second;
 }
 
@@ -306,6 +306,8 @@ remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
         case S_2:
             f_map.erase(s2);    break;
         }
+        cout << "s1: " << s1.substr(0,15)<< " s2: "<< s2.substr(0,15)
+             << " d_ent " << it->ndx1 << " "<< it->ndx2 << " " << it->dist<< "\n";
     }
 }
 
@@ -343,10 +345,10 @@ write_kept_seq (const char *in_fname, const char *out_fname,
         const map<string, fseq_prop>::iterator missing = f_map.end();
         const map<string, fseq_prop>::iterator f1 = f_map.find(fs.get_cmmt());
         if (f1 != missing) {
-            out_file << fs.get_cmmt() << std::endl;
-            unsigned done = 0, to_go;
-            string s = fs.get_seq();
-            to_go = s.length();
+            out_file << fs.get_cmmt() << std::endl; /* write comment verbatim */
+            unsigned done = 0, to_go;   /* but the sequence could have long */
+            string s = fs.get_seq();    /* lines that should be split into */
+            to_go = s.length();         /* pieces. */
             while (to_go) {
                 size_t this_line = SEQ_LINE_LEN;
                 if (SEQ_LINE_LEN > to_go)
@@ -355,8 +357,8 @@ write_kept_seq (const char *in_fname, const char *out_fname,
                 done += this_line;
                 to_go -= this_line;
             }
+            f_map.erase (fs.get_cmmt()); /* stop duplicates being written again */
         }
-
     }
 
     in_file.close();
@@ -382,7 +384,7 @@ main (int argc, char *argv[])
     bool eflag = false;
     string choice_name, seed_str;
     int seed;
- 
+
     /*    set_terminate(our_terminate); */
     while ((c = getopt(argc, argv, "a:c:e:sv")) != -1) {
         switch (c) {
@@ -430,7 +432,7 @@ main (int argc, char *argv[])
     int sacred_ret;
     thread sac_thr;
     if (sacred_fname)
-        sac_thr = thread (get_sacred, sacred_fname, ref(v_sacred), &sacred_ret);    
+        sac_thr = thread (get_sacred, sacred_fname, ref(v_sacred), &sacred_ret);
 
     decider_f *choice = always_first;
 
@@ -439,8 +441,7 @@ main (int argc, char *argv[])
             gsl_thr.join(); return EXIT_FAILURE;}
 
 
-    vector<dist_entry> v_dist;
-
+    vector<dist_entry> v_dist; /* Big vector with sorted distance entries */
     vector<string> v_cmt;
 
     try {
