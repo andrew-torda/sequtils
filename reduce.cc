@@ -15,7 +15,6 @@
  */
 
 #include <cerrno>
-#include <condition_variable>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -31,7 +30,6 @@
 
 #include <vector>
 
-//#include "delay.hh" /* Only during debugging */
 #include "distmat_rd.hh"
 #include "fseq.hh"
 #include "mgetline.hh"
@@ -39,7 +37,7 @@
 using namespace std;
 
 /* ---------------- structures and constants ----------------- */
-static const unsigned N_SEQBUF = 512;
+static const unsigned N_SEQBUF = 500;
 static const unsigned SEQ_LINE_LEN = 60; /* How many chars per line output seqs */
 static const char    *SEED_STR = "_seed_"; /* mafft marker for seed alignments */
 
@@ -72,8 +70,7 @@ typedef vector<fseq> v_fs;
 static void
 from_queue (t_queue <v_fs> &q_fs, map<string, fseq_prop> &f_map)  {
     while (q_fs.alive()) {
-        v_fs v = q_fs.front();
-        q_fs.pop();
+        v_fs v = q_fs.front_and_pop();
         for (v_fs::iterator it = v.begin() ; it != v.end(); it++) {
             fseq fs = *it;
             fseq_prop f_p (*it);
@@ -114,10 +111,11 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname, int *ret) {
         unsigned n = 0;
         unsigned scount = 0;
         v_fs tmp_v_fs;
+        tmp_v_fs.reserve (N_SEQBUF);
         while (fs.fill (infile, len)) {
             scount++;                      /* Put packages of N_SEQBUF */
-            tmp_v_fs.push_back (fs);      /* into the queue, rather than */
-            if (++n == N_SEQBUF) {         /* sequences one at a */
+            tmp_v_fs.push_back (fs);       /* into the queue, rather than */
+            if (++n == N_SEQBUF) {         /* sequences one at a time. */
                 q_fs.push (tmp_v_fs);
                 n = 0;
                 tmp_v_fs.clear();
@@ -161,12 +159,15 @@ get_sacred (const char *sacred_fname, vector<string> &v_sacred, int *sacred_ret)
  * Make sure that the sequences given in the distance file
  * exist in the alignment file, as store in f_map.
  */
-static const int
+static int
 check_lists ( const map<string, fseq_prop> &f_map, vector<string> &v_cmt)
 {
+    unsigned n = 0;
     for (vector<string>::iterator it = v_cmt.begin(); it != v_cmt.end(); it++) {
+        n++;
         if (f_map.find(*it) == f_map.end()) {
-            cerr << "Sequence " << *it << " in distmat file not found\n";
+            cerr << "Sequence \"" << *it << "\" in distmat file not found\n" <<
+                "It was sequence number " << n << "\n";
             return EXIT_FAILURE;
         }
     }
@@ -282,11 +283,10 @@ choose_seq (const fseq_prop &f1, const fseq_prop &f2, decider_f *choice)
  */
 static void
 remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
-            vector<dist_entry> &v_dist, const unsigned to_keep,
+            vector<dist_entry> &v_dist, const unsigned long to_keep,
             decider_f *choice)
 {
     vector<dist_entry>::iterator it = v_dist.begin();
-    unsigned kept = f_map.size();
     for (; f_map.size() > to_keep; it++) {
         if (it == v_dist.end())
             break;
@@ -306,8 +306,8 @@ remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
         case S_2:
             f_map.erase(s2);    break;
         }
-        cout << "s1: " << s1.substr(0,15)<< " s2: "<< s2.substr(0,15)
-             << " d_ent " << it->ndx1 << " "<< it->ndx2 << " " << it->dist<< "\n";
+/*      cout << "s1: " << s1.substr(0,15)<< " s2: "<< s2.substr(0,15)
+        << " d_ent " << it->ndx1 << " "<< it->ndx2 << " " << it->dist<< "\n"; */
     }
 }
 
@@ -346,7 +346,7 @@ write_kept_seq (const char *in_fname, const char *out_fname,
         const map<string, fseq_prop>::iterator f1 = f_map.find(fs.get_cmmt());
         if (f1 != missing) {
             out_file << fs.get_cmmt() << std::endl; /* write comment verbatim */
-            unsigned done = 0, to_go;   /* but the sequence could have long */
+            size_t done = 0, to_go;   /* but the sequence could have long */
             string s = fs.get_seq();    /* lines that should be split into */
             to_go = s.length();         /* pieces. */
             while (to_go) {
@@ -364,12 +364,6 @@ write_kept_seq (const char *in_fname, const char *out_fname,
     in_file.close();
     out_file.close();
     return (EXIT_SUCCESS);
-}
-
-static void
-our_terminate (void) {
-    breaker();
-    exit (EXIT_FAILURE);
 }
 
 /* ---------------- main  ------------------------------------ */
@@ -409,11 +403,11 @@ main (int argc, char *argv[])
 
     if ((argc - optind) < 4)
         usage (progname, " too few arguments");
-    const char *in_fname     = argv[optind++];
-    const char *dist_fname   = argv[optind++];
-    const char *out_fname    = argv[optind++];
-    const char *to_keep_str  = argv[optind++];
-    const unsigned n_to_keep = stoul (to_keep_str);
+    const char *in_fname           = argv[optind++];
+    const char *dist_fname         = argv[optind++];
+    const char *out_fname          = argv[optind++];
+    const char *to_keep_str        = argv[optind++];
+    const unsigned long n_to_keep = stoul (to_keep_str);
     if (seed_str.length())
         seed = stoi (seed_str);
     else
@@ -429,7 +423,7 @@ main (int argc, char *argv[])
     thread gsl_thr (get_seq_list, ref(f_map), in_fname, &gsl_ret);
 
     vector<string> v_sacred;
-    int sacred_ret;
+    int sacred_ret = EXIT_SUCCESS;
     thread sac_thr;
     if (sacred_fname)
         sac_thr = thread (get_sacred, sacred_fname, ref(v_sacred), &sacred_ret);
@@ -439,7 +433,6 @@ main (int argc, char *argv[])
     if (choice_name.size())
         if ((choice = set_up_choice(choice_name)) == nullptr) {
             gsl_thr.join(); return EXIT_FAILURE;}
-
 
     vector<dist_entry> v_dist; /* Big vector with sorted distance entries */
     vector<string> v_cmt;
