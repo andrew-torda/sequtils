@@ -1,4 +1,5 @@
 #include <fstream>
+#include <iostream> /* just for cerr during debugging*/
 #include <string>
 
 /* ---------------- get_seq_list -----------------------------
@@ -17,6 +18,18 @@ mgetline ( std::ifstream& is, std::string& str)
     size_t n    = 0;   /* the count that we return */
     char buf[BSIZ];
     str.clear();
+    do {
+        is.getline (buf, BSIZ);  /* 99.9 % of the time, this is all we do. */
+        str.append (buf);        /* In the very rare cases that the line is */
+        if (is.eof())            /* too long for the buffer, we will enter */
+            break;               /* this loop. */
+        if (is.bad())
+            break; /* this should not happen. */
+        if (is.fail())
+            is.clear();
+    } while (str.size() == (BSIZ - 1));
+    
+#   ifdef old
     int c = is.get();
     while ((c != EOF) && (c != '\n')) {
         n++;
@@ -29,13 +42,9 @@ mgetline ( std::ifstream& is, std::string& str)
     }
     if (ibuf)
         str.append (buf, ibuf);
-#   ifdef slow_version
-        for (int i = is.get();(i != EOF) && (i != '\n'); i = is.get()) {
-            str += i;
-            n++;
-        }
-#   endif /* slow_version */
     return n;
+#   endif /* old */
+    return str.size();
 }
 
 #ifdef want_test_of_mgetline
