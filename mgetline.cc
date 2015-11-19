@@ -1,6 +1,7 @@
 #include <fstream>
-#include <iostream> /* just for cerr during debugging*/
 #include <string>
+
+#include "mgetline.hh"
 
 /* ---------------- get_seq_list -----------------------------
  * I found that the string version of getline is not thread
@@ -14,8 +15,6 @@ size_t
 mgetline ( std::ifstream& is, std::string& str)
 {
     static const unsigned BSIZ = 200;
-    size_t ibuf = 0;
-    size_t n    = 0;   /* the count that we return */
     char buf[BSIZ];
     str.clear();
     do {
@@ -29,21 +28,6 @@ mgetline ( std::ifstream& is, std::string& str)
             is.clear();
     } while (str.size() == (BSIZ - 1));
     
-#   ifdef old
-    int c = is.get();
-    while ((c != EOF) && (c != '\n')) {
-        n++;
-        buf[ibuf] = c;
-        if (++ibuf == BSIZ) {
-            ibuf = 0;
-            str.append (buf, BSIZ);
-        }
-        c = is.get();
-    }
-    if (ibuf)
-        str.append (buf, ibuf);
-    return n;
-#   endif /* old */
     return str.size();
 }
 
