@@ -240,7 +240,7 @@ set_up_choice (const string &s)
     const map<string, decider_f *>::const_iterator missing = choice_map.end();
     const map<string, decider_f *>::const_iterator ent = choice_map.find(s);
     if (ent == missing) {
-        cerr << "random choice type " << s << " not known. Try one of \n";
+        cerr << __func__ <<": random choice type \"" << s << "\" not known. Stopping. Try one of..\n   ";
         map<string, decider_f *>::const_iterator it = choice_map.begin();
         for (; it != missing; it++)
             cout << it->first << " ";
@@ -392,17 +392,22 @@ main (int argc, char *argv[])
         return (usage(progname, ""));
 
     if ((argc - optind) < 4)
-        usage (progname, " too few arguments");
+        return (usage (progname, " too few arguments"));
     const char *in_fname           = argv[optind++];
     const char *dist_fname         = argv[optind++];
     const char *out_fname          = argv[optind++];
     const char *to_keep_str        = argv[optind++];
-    const unsigned long n_to_keep = stoul (to_keep_str);
-    if (seed_str.length())
-        seed = stoul (seed_str);
-    else
-        seed = DFLT_SEED;
-    r_engine.seed( seed);
+
+    unsigned long n_to_keep;
+    try {
+        n_to_keep = stoul (to_keep_str);
+        if (seed_str.length())
+            seed = stoul (seed_str);
+        else
+            seed = DFLT_SEED;
+        r_engine.seed( seed);
+    } catch (const std::invalid_argument& ia) {
+        cerr << "Invalid argument: " << ia.what() << '\n'; return EXIT_FAILURE; }
     cout << progname << ": using " << in_fname << " as multiple seq alignment.\nDistance matrix from "
          << dist_fname << " as distance matrix.\nWriting to " << out_fname
          << "\nKeeping " << n_to_keep << " of the sequences\n";
@@ -420,9 +425,13 @@ main (int argc, char *argv[])
 
     decider_f *choice = always_first;
 
-    if (choice_name.size())
+    if (choice_name.size()) {
         if ((choice = set_up_choice(choice_name)) == nullptr) {
-            gsl_thr.join(); return EXIT_FAILURE;}
+            gsl_thr.join();
+            sac_thr.join();
+            return EXIT_FAILURE;
+        }
+    }
 
     vector<dist_entry> v_dist; /* Big vector with sorted distance entries */
     vector<string> v_cmt;
@@ -447,7 +456,7 @@ main (int argc, char *argv[])
     if (sacred_fname) {
         sac_thr.join();
         if (sacred_ret != EXIT_SUCCESS) {
-            cerr << __func__ << " err reading sacred file from "<< sacred_fname;
+            cerr << __func__ << ": err reading sacred file from "<< sacred_fname <<". Stopping\n";
             return EXIT_FAILURE;
         }
         if (mark_sacred (f_map, v_sacred) != EXIT_SUCCESS)
