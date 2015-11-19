@@ -47,9 +47,6 @@ static const unsigned char S_2    = 2;
 
 static const int DFLT_SEED = 180077;
 
-static std::default_random_engine r_engine{};
-static void breaker(){}
-
 /* ---------------- usage ------------------------------------ */
 static int usage ( const char *progname, const char *s)
 {
@@ -103,7 +100,7 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname, int *ret) {
         infile.seekg (pos);
     }
 
-    t_queue <v_fs> q_fs;
+    t_queue <v_fs> q_fs(10, 20);
     thread t1 (from_queue, ref(q_fs), ref(f_map));
 
     {
@@ -163,10 +160,10 @@ static int
 check_lists ( const map<string, fseq_prop> &f_map, vector<string> &v_cmt)
 {
     unsigned n = 0;
-    for (vector<string>::iterator it = v_cmt.begin(); it != v_cmt.end(); it++) {
+    for (vector<string>::const_iterator it = v_cmt.begin(); it != v_cmt.end(); it++) {
         n++;
         if (f_map.find(*it) == f_map.end()) {
-            cerr << "Sequence \"" << *it << "\" in distmat file not found\n" <<
+            cerr << __func__<< " Sequence \"" << *it << "\" in distmat file not found\n" <<
                 "It was sequence number " << n << "\n";
             return EXIT_FAILURE;
         }
@@ -181,7 +178,7 @@ check_lists ( const map<string, fseq_prop> &f_map, vector<string> &v_cmt)
 static int
 mark_sacred (map<string, fseq_prop> &f_map, vector<string> &v_sacred)
 {
-    vector<string>::iterator it = v_sacred.begin() ;
+    vector<string>::const_iterator it = v_sacred.begin() ;
     int ret = EXIT_SUCCESS;
     for ( ;it != v_sacred.end(); ++it) {
         if (f_map.find(*it) == f_map.end()) {
@@ -211,18 +208,11 @@ always_second (const fseq_prop &f1, const fseq_prop &f2)
 {
     return S_2;
 }
-static unsigned char
-more_gaps (const fseq_prop &f1, const fseq_prop &f2)
-{
-    cerr << "f1 and f2 gaps, " << f1.ngap << " "<< f2.ngap<<"\n";
-    if (f1.ngap >= f2.ngap)
-        return S_1;
-    return S_2;
-}
 
 static unsigned char
 decide_random(const fseq_prop &f1, const fseq_prop &f2)
 {
+    static default_random_engine r_engine{};
     uniform_int_distribution<int> d{0,1};
     int r = d(r_engine);
     if (r == 1)
@@ -241,17 +231,17 @@ decide_longer(const fseq_prop &f1, const fseq_prop &f2)
 static decider_f *
 set_up_choice (const string &s)
 {
-    map <string, decider_f*> choice_map;
+    map <const string, decider_f*> choice_map;
     choice_map["first"]  = always_first;  /* Table of keywords and */
     choice_map["second"] = always_second; /* function pointers */
     choice_map["random"] = decide_random;
     choice_map["longer"] = decide_longer;
 
-    const map<string, decider_f *>::iterator missing = choice_map.end();
-    const map<string, decider_f *>::iterator ent = choice_map.find(s);
+    const map<string, decider_f *>::const_iterator missing = choice_map.end();
+    const map<string, decider_f *>::const_iterator ent = choice_map.find(s);
     if (ent == missing) {
         cerr << "random choice type " << s << " not known. Try one of \n";
-        map<string, decider_f *>::iterator it = choice_map.begin();
+        map<string, decider_f *>::const_iterator it = choice_map.begin();
         for (; it != missing; it++)
             cout << it->first << " ";
         cout << endl;
@@ -286,21 +276,21 @@ remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
             vector<dist_entry> &v_dist, const unsigned long to_keep,
             decider_f *choice)
 {
-    vector<dist_entry>::iterator it = v_dist.begin();
+    vector<dist_entry>::const_iterator it = v_dist.begin();
     for (; f_map.size() > to_keep; it++) {
         if (it == v_dist.end())
             break;
         string &s1 = v_cmt[it->ndx1];
         string &s2 = v_cmt[it->ndx2];
-        const map<string, fseq_prop>::iterator missing = f_map.end();
-        const map<string, fseq_prop>::iterator f1 = f_map.find(s1);
-        const map<string, fseq_prop>::iterator f2 = f_map.find(s2);
+        const map<string, fseq_prop>::const_iterator missing = f_map.end();
+        const map<string, fseq_prop>::const_iterator f1 = f_map.find(s1);
+        const map<string, fseq_prop>::const_iterator f2 = f_map.find(s2);
         if ((f1 == missing) || (f2 == missing))
             continue;
         const unsigned char c = choose_seq(f1->second, f2->second, choice);
         switch (c) {
         case NOBODY:
-            continue;           break;
+            continue;        /* break; otherwise compiler complains */
         case S_1:
             f_map.erase(s1);    break;
         case S_2:
@@ -316,7 +306,7 @@ remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
 static void
 remove_seeds (map<string, fseq_prop> &f_map, vector<string> &v_cmt)
 {
-    vector<string>::iterator it = v_cmt.begin();
+    vector<string>::const_iterator it = v_cmt.begin();
     for (; it != v_cmt.end(); it++)
         if (it->find (SEED_STR) != string::npos)
             f_map.erase (*it);
@@ -342,8 +332,8 @@ write_kept_seq (const char *in_fname, const char *out_fname,
     }
 
     while (fs.fill (in_file, 0)) {
-        const map<string, fseq_prop>::iterator missing = f_map.end();
-        const map<string, fseq_prop>::iterator f1 = f_map.find(fs.get_cmmt());
+        const map<string, fseq_prop>::const_iterator missing = f_map.end();
+        const map<string, fseq_prop>::const_iterator f1 = f_map.find(fs.get_cmmt());
         if (f1 != missing) {
             out_file << fs.get_cmmt() << std::endl; /* write comment verbatim */
             size_t done = 0, to_go;   /* but the sequence could have long */
@@ -377,8 +367,8 @@ main (int argc, char *argv[])
     const char *sacred_fname = nullptr;
     bool eflag = false;
     string choice_name, seed_str;
-    int seed;
-
+    unsigned long seed;
+    default_random_engine r_engine{};
     /*    set_terminate(our_terminate); */
     while ((c = getopt(argc, argv, "a:c:e:sv")) != -1) {
         switch (c) {
@@ -409,7 +399,7 @@ main (int argc, char *argv[])
     const char *to_keep_str        = argv[optind++];
     const unsigned long n_to_keep = stoul (to_keep_str);
     if (seed_str.length())
-        seed = stoi (seed_str);
+        seed = stoul (seed_str);
     else
         seed = DFLT_SEED;
     r_engine.seed( seed);
@@ -471,7 +461,7 @@ main (int argc, char *argv[])
 #   undef check_the_map_is_ok
 #   ifdef check_the_map_is_ok
         cout << "dump f_map:\n";
-        for (map<string,fseq_prop>::iterator it=f_map.begin(); it!=f_map.end(); it++)
+        for (map<string,fseq_prop>::const_iterator it=f_map.begin(); it!=f_map.end(); it++)
             cout << it->first.substr (0,20) << "\n";
         cout << "f_map size: "<< f_map.size() << "\n";
 #   endif
