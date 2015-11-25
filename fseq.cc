@@ -1,5 +1,5 @@
 /* 10 oct 2015 */
-static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.3 2015/10/30 15:07:17 torda Exp torda $";
+static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.4 2015/10/30 18:00:25 torda Exp torda $";
 
 #include <csignal>
 #include <fstream>
@@ -24,15 +24,10 @@ using namespace std;
 
 /* ---------------- structures and constants ----------------- */
 static const char COMMENT = '>';
-static const char *NOSTRING = "";
 static const char GAP = '-';
-static const unsigned N_SEQBUF = 100;
-static void breaker(){}
+
 /* ---------------- fseq::fill  ------------------------------
- * This is the real initialisor/constructor for an fseq.
- * strangely, I used to use temporary variables for the strings,
- * but valgrind said there was a memory leak. It went away when
- * I swapped to working with the members of the class directly.
+ * The real initialisor/constructor for an fseq.
  */
 bool
 fseq::fill (ifstream &infile, const size_t len_exp) {
@@ -83,21 +78,4 @@ fseq::fill (ifstream &infile, const size_t len_exp) {
  */
 fseq::fseq(ifstream &infile, const size_t len_exp) {
     fill (infile, len_exp);
-}
-
-/* ---------------- fseq_prop::fseq_prop ---------------------
- * This constructor gets a sequence, does some work and sets
- * a few properties.
- */
-
-fseq_prop::fseq_prop (fseq& fs)
-{
-    ngap = 0;
-    sacred = false;
-    string s = fs.get_seq();
-    string::iterator it = s.begin();
-    const string::iterator it_end = s.end();
-    for (;it < it_end; it++)
-        if (*it == GAP)
-            ngap++;
 }

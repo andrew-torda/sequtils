@@ -23,17 +23,14 @@
 #include <random>
 #include <queue>
 #include <map>
-
-#include <atomic>
-#include <mutex>
-#include <thread>
-
 #include <vector>
 
 #include "distmat_rd.hh"
 #include "fseq.hh"
+#include "fseq_prop.hh"
 #include "mgetline.hh"
 #include "t_queue.hh"
+
 using namespace std;
 
 /* ---------------- structures and constants ----------------- */
@@ -47,11 +44,16 @@ static const unsigned char S_2    = 2;
 
 static const int DFLT_SEED = 180077;
 
+struct seq_props {
+    map<string, fseq_prop> f_map;
+    size_t len;
+};
+
 /* ---------------- usage ------------------------------------ */
 static int usage ( const char *progname, const char *s)
 {
     static const char *u
-        = ": [-sv -a sacred_file -c choice -e seed] mult_seq_align.msa \
+        = ": [-fsv -a sacred_file -c choice -e seed] mult_seq_align.msa \
 dist_mat.hat2 outfile.msa n_to_keep\n";
     cerr << progname << s << "\n";
     cerr << progname << u;
@@ -83,7 +85,8 @@ from_queue (t_queue <v_fs> &q_fs, map<string, fseq_prop> &f_map)  {
  * here
  */
 static void
-get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname, int *ret) {
+//get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname, int *ret) {
+get_seq_list (struct seq_props & s_props, const char *in_fname, int *ret) {
     string errmsg = __func__;
     size_t len;
     ifstream infile (in_fname);
@@ -99,9 +102,9 @@ get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname, int *ret) {
         len = fs.get_seq().size();
         infile.seekg (pos);
     }
-
+    s_props.len = len;
     t_queue <v_fs> q_fs(10, 20);
-    thread t1 (from_queue, ref(q_fs), ref(f_map));
+    thread t1 (from_queue, ref(q_fs), ref(s_props.f_map));
 
     {
         fseq fs;
@@ -247,7 +250,6 @@ set_up_choice (const string &s)
         cout << endl;
         return nullptr;
     }
-
     return ent->second;
 }
 
@@ -277,18 +279,15 @@ remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
             decider_f *choice)
 {
     vector<dist_entry>::const_iterator it = v_dist.begin();
-    for (; f_map.size() > to_keep; it++) {
-        if (it == v_dist.end())
-            break;
-        string &s1 = v_cmt[it->ndx1];
+    while (f_map.size() > to_keep  && (it != v_dist.end())) {
+        const string &s1 = v_cmt[it->ndx1];
         string &s2 = v_cmt[it->ndx2];
         const map<string, fseq_prop>::const_iterator missing = f_map.end();
-        const map<string, fseq_prop>::const_iterator f1 = f_map.find(s1);
-        const map<string, fseq_prop>::const_iterator f2 = f_map.find(s2);
+        const map<string, fseq_prop>::const_iterator f1      = f_map.find(s1);
+        const map<string, fseq_prop>::const_iterator f2      = f_map.find(s2);
         if ((f1 == missing) || (f2 == missing))
             continue;
-        const unsigned char c = choose_seq(f1->second, f2->second, choice);
-        switch (c) {
+        switch (choose_seq(f1->second, f2->second, choice)) {
         case NOBODY:
             continue;        /* break; otherwise compiler complains */
         case S_1:
@@ -296,8 +295,7 @@ remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
         case S_2:
             f_map.erase(s2);    break;
         }
-/*      cout << "s1: " << s1.substr(0,15)<< " s2: "<< s2.substr(0,15)
-        << " d_ent " << it->ndx1 << " "<< it->ndx2 << " " << it->dist<< "\n"; */
+        it++;
     }
 }
 
@@ -362,14 +360,15 @@ main (int argc, char *argv[])
 {
     int c;
     short unsigned verbosity = 0;
-    bool seedflag = false;
-    const char *progname = argv[0];
-    const char *sacred_fname = nullptr;
-    bool eflag = false;
+    bool seedflag   = false;
+    bool filter_col = false;
+    bool eflag      = false;
     string choice_name, seed_str;
     unsigned long seed;
     default_random_engine r_engine{};
-    /*    set_terminate(our_terminate); */
+    const char *progname = argv[0];
+    const char *sacred_fname = nullptr;
+
     while ((c = getopt(argc, argv, "a:c:e:sv")) != -1) {
         switch (c) {
         case 'a':
@@ -378,6 +377,8 @@ main (int argc, char *argv[])
             choice_name += optarg;                                     break;
         case 'e':
             seed_str = optarg;                                         break;
+        case 'f':
+            filter_col = true;                                         break;
         case 's':
             seedflag = true;                                           break;
         case 'v':
@@ -414,8 +415,10 @@ main (int argc, char *argv[])
 
 
     map<string, fseq_prop> f_map;
+    struct seq_props s_props;
     int gsl_ret;
-    thread gsl_thr (get_seq_list, ref(f_map), in_fname, &gsl_ret);
+    //     thread gsl_thr (get_seq_list, ref(f_map), in_fname, &gsl_ret);
+    thread gsl_thr (get_seq_list, ref(s_props), in_fname, &gsl_ret);
 
     vector<string> v_sacred;
     int sacred_ret = EXIT_SUCCESS;
@@ -440,7 +443,9 @@ main (int argc, char *argv[])
         read_distmat (dist_fname, v_dist, v_cmt) ;
     } catch (runtime_error &e) {
         gsl_thr.join(); sac_thr.join();
-        cerr << e.what();  return EXIT_FAILURE; }
+        cerr << "Error reading distance matrix: "<< e.what() << "\n";
+        return EXIT_FAILURE;
+    }
 
     gsl_thr.join();
     if (gsl_ret != EXIT_SUCCESS) {
@@ -464,6 +469,12 @@ main (int argc, char *argv[])
     }
 
     remove_seq (f_map, v_cmt, v_dist, n_to_keep, choice);
+
+    if (filter_col) {
+        vector<bool> v_used(s_props.len, false);
+        cout<< "we should now remove empty columns\n. I have a vector of length and size "<< v_used.size() << " "<< sizeof (v_used) << "\n";
+    }
+
     if (write_kept_seq (in_fname, out_fname, f_map) != EXIT_SUCCESS)
         return EXIT_FAILURE;
 
