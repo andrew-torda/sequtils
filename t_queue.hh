@@ -33,7 +33,6 @@ private:
 
     std::vector<T> feed_buf;
     std::vector<T> consum_buf;
-    T p_q_tmp;
     unsigned min_in_q, max_in_q;
     unsigned max_buf;
     unsigned feed_cnt, consum_cnt;
