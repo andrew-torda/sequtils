@@ -126,28 +126,27 @@ t_queue<T>::front_and_pop()
 {
     T tmp;
     unsigned char to_change = 0;
+    typename std::queue<T>::size_type to_get = 0;
     if (c_buf_was_empty) {
         consum_buf.clear();
-        typename std::queue<T>::size_type to_get = atm_size; /* How many items  */
-        if (max_buf < to_get)                 /* should we get from the queue ? */
+        to_get = atm_size;              /* How many items  */
+        if (max_buf < to_get)           /* should we get from the queue ? */
             to_get = max_buf;
         consum_buf.reserve(to_get);
         {
             std::lock_guard<std::mutex> lock (q_mtx);
             for (unsigned i = 0; i < to_get; i++) {
-                p_q_tmp = p_q.front();
-                consum_buf.push_back(p_q_tmp);
+                consum_buf.push_back(p_q.front());
                 p_q.pop();
-            }
-            if (to_get) {
-                empty_closed &= (~C_BUF_EMPTY);
-                c_buf_was_empty = false;
-                atm_size -= to_get; /* Must be done while we hold lock. Do not know why. */
             }
             if (p_q.empty())
                 to_change |= Q_EMPTY;
         }
-
+        if (to_get) {
+            empty_closed &= (~C_BUF_EMPTY);
+            c_buf_was_empty = false;
+            atomic_fetch_sub (&atm_size, to_get);
+        }
         consum_cnt = 0;
     }
 
@@ -176,10 +175,9 @@ t_queue<T>::push(const T t) {
     {
         std::lock_guard<std::mutex> lock (q_mtx);
         p_q.push (t);
-        atm_size = p_q.size();
-        empty_closed &= not_empty;
     }
-
+    empty_closed &= not_empty;
+    atm_size ++;
     if (alive_wants_notification) {
 /*      man pages suggest the next lock, but it does not seem necessary */
         std::unique_lock<std::mutex> refill_lock(refill_mtx);
