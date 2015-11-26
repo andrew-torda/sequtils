@@ -1,6 +1,8 @@
 /*
  * 21 Nov 2015
  */
+#ifndef T_QUEUE_TCC
+#define T_QUEUE_TCC 1
 #include <atomic>
 #include <condition_variable>
 #include <queue>
@@ -45,8 +47,7 @@ t_queue<T>::t_queue (unsigned min_q, unsigned max_q) {
 
 template <typename T>
 t_queue<T>::t_queue (short unsigned prod_buf_siz, short unsigned consum_buf_size,
-                  unsigned min_q, unsigned max_q) {
-    
+                  unsigned min_q, unsigned max_q) {    
     min_in_q = min_q;
     max_in_q = max_q;
     max_buf = consum_buf_size;
@@ -77,9 +78,9 @@ t_queue<T>::close() {
 
 /* ---------------- alive  -----------------------------------
  * This tells us if the queue is still alive. It does the
- * waiting if it is empty. I would move this into front_and_pop()
- * but the conventions for returning objects and references make
- * it not much fun.
+ * waiting if it is empty.
+ * If the queue is empty and it is closed and the local buffer
+ * is empty, than we are really fished and return false.
  */
 template <typename T>
 bool
@@ -87,11 +88,11 @@ t_queue<T>::alive () {
     const unsigned char e_c = empty_closed; /* We only need to access atomic var once */
     const unsigned char really_closed = (Q_EMPTY | CLOSED | C_BUF_EMPTY);
 
+    if ( !(c_buf_was_empty) || (atm_size != 0)) /* most common case */
+        return true;
+
     if ( (e_c & really_closed) == really_closed) 
         return false;
-
-    if ( !(e_c & C_BUF_EMPTY) || (atm_size != 0))
-        return true;
 
     /* Reaching here means the queue is not closed, but the buffer is empty */
     if (atm_size == 0) {
@@ -100,11 +101,12 @@ t_queue<T>::alive () {
                 throttled_wait.notify_one();
         std::unique_lock<std::mutex> refill_lock(refill_mtx);
         alive_wants_notification = true;
-
+        
+/*      The next while condition is a guard against "spurious" wakeups. */
         while ((atm_size == 0) &&  ((empty_closed & really_closed) != really_closed))
             need_refill.wait(refill_lock);
-        alive_wants_notification = false;
     }
+    
     /* We have waited, but it could be that the queue simply closed */
     if (empty_closed & CLOSED)
         return false;
@@ -119,6 +121,15 @@ t_queue<T>::alive () {
  * If I combine front() and pop(), I only have to lock the queue once.
  * Unfortunately, I cannot get it to work if I use a reference to the
  * returned T. This is not tragic, but means I am copying unnecessarily.
+ * Why do we use a separate variable to say if the local buffer was empty ?
+ * We could look at the atomic state variable, but that means locking with
+ * other processes. The only place the variable can change is here, so we
+ * store a copy in c_buf_was empty. We use the atomic variable to tell
+ * other processes that our buffer is empty. This is used when we are
+ * deciding if we are finished or not.
+ * Similarly, we may have to make two changes if we mark our buffer as
+ * empty and the whole queue as empty. We save the changes in a local variable
+ * and only access the atomic variable once.
  */
 template <typename T>
 const T
@@ -139,7 +150,7 @@ t_queue<T>::front_and_pop()
                 consum_buf.push_back(p_q.front());
                 p_q.pop();
             }
-            if (p_q.empty())
+            if (p_q.empty()) /* This has to be done while locked */
                 to_change |= Q_EMPTY;
         }
         if (to_get) {
@@ -156,8 +167,8 @@ t_queue<T>::front_and_pop()
         to_change |= C_BUF_EMPTY;
         c_buf_was_empty = true;
     }
-    if (to_change) /* This announced that we think the queue is empty */
-        empty_closed |= to_change; /* and/or our buffer is empty */
+    if (to_change) /* This announces that we think the queue is empty */
+        empty_closed |= to_change;      /* and/or our buffer is empty */
 
     if (do_throttling)
         if (throttled && (atm_size <= min_in_q))
@@ -181,14 +192,17 @@ t_queue<T>::push(const T t) {
     if (alive_wants_notification) {
 /*      man pages suggest the next lock, but it does not seem necessary */
         std::unique_lock<std::mutex> refill_lock(refill_mtx);
-        need_refill.notify_one();
+        alive_wants_notification = false;
     }
+    need_refill.notify_one();
     if (do_throttling) {
         if (atm_size >= max_in_q) {
             std::unique_lock<std::mutex> throttle_lock(throttle_mtx);
             throttled = true;
+            std::cerr <<__func__ << " waiting";
             throttled_wait.wait (throttle_lock);
             throttled = false;
         }
     }
 }
+#endif /* T_QUEUE_TCC */
