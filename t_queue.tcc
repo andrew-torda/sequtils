@@ -108,7 +108,7 @@ t_queue<T>::alive () {
     }
     
     /* We have waited, but it could be that the queue simply closed */
-    if (empty_closed & CLOSED)
+    if (atm_size == 0)
         return false;
     return true;
 }
