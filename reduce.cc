@@ -60,22 +60,20 @@ dist_mat.hat2 outfile.msa n_to_keep\n";
     return EXIT_FAILURE;
 }
 
-typedef vector<fseq> v_fs;
-
 /* ---------------- from_queue -------------------------------
  * We have bundles of sequences in a vector. Pull each from
  * the queue
  */
 static void
-from_queue (t_queue <v_fs> &q_fs, map<string, fseq_prop> &f_map)  {
+from_queue (t_queue <fseq> &q_fs, map<string, fseq_prop> &f_map)  {
+    unsigned n = 0;
     while (q_fs.alive()) {
-        v_fs v = q_fs.front_and_pop();
-        for (v_fs::iterator it = v.begin() ; it != v.end(); it++) {
-            fseq fs = *it;
-            fseq_prop f_p (*it);
-            f_map [fs.get_cmmt()] = f_p;
-        }
+        fseq fs = q_fs.front_and_pop();
+        fseq_prop f_p (fs);
+        f_map [fs.get_cmmt()] = f_p;
+        n++;
     }
+    cout << __func__ << " read "<< n<< " seqs\n";
 }
 
 /* ---------------- get_seq_list -----------------------------
@@ -85,7 +83,6 @@ from_queue (t_queue <v_fs> &q_fs, map<string, fseq_prop> &f_map)  {
  * here
  */
 static void
-//get_seq_list (map<string, fseq_prop> &f_map, const char *in_fname, int *ret) {
 get_seq_list (struct seq_props & s_props, const char *in_fname, int *ret) {
     string errmsg = __func__;
     size_t len;
@@ -103,26 +100,14 @@ get_seq_list (struct seq_props & s_props, const char *in_fname, int *ret) {
         infile.seekg (pos);
     }
     s_props.len = len;
-    t_queue <v_fs> q_fs(10, 20);
+    t_queue <fseq> q_fs(10, 10, 10, 10);
     thread t1 (from_queue, ref(q_fs), ref(s_props.f_map));
 
     {
         fseq fs;
-        unsigned n = 0;
         unsigned scount = 0;
-        v_fs tmp_v_fs;
-        tmp_v_fs.reserve (N_SEQBUF);
-        while (fs.fill (infile, len)) {
-            scount++;                      /* Put packages of N_SEQBUF */
-            tmp_v_fs.push_back (fs);       /* into the queue, rather than */
-            if (++n == N_SEQBUF) {         /* sequences one at a time. */
-                q_fs.push (tmp_v_fs);
-                n = 0;
-                tmp_v_fs.clear();
-            }
-        }
-        if (tmp_v_fs.size())                              /* catch the leftovers */
-            q_fs.push (tmp_v_fs);
+        for (; fs.fill(infile, len); scount++)
+            q_fs.push (fs);
         cout << "read "<< scount << " seqs\n";
     }
 
@@ -164,7 +149,6 @@ check_lists ( const map<string, fseq_prop> &f_map, vector<string> &v_cmt)
 {
     unsigned n = 0;
     for (vector<string>::const_iterator it = v_cmt.begin(); it != v_cmt.end(); it++) {
-        n++;
         if (f_map.find(*it) == f_map.end()) {
             cerr << __func__<< " Sequence \"" << *it << "\" in distmat file not found\n" <<
                 "It was sequence number " << n << "\n";
@@ -279,7 +263,7 @@ remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
             decider_f *choice)
 {
     vector<dist_entry>::const_iterator it = v_dist.begin();
-    while (f_map.size() > to_keep  && (it != v_dist.end())) {
+    for ( ; f_map.size() > to_keep  && (it != v_dist.end()); it++) {
         const string &s1 = v_cmt[it->ndx1];
         string &s2 = v_cmt[it->ndx2];
         const map<string, fseq_prop>::const_iterator missing = f_map.end();
@@ -295,7 +279,6 @@ remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
         case S_2:
             f_map.erase(s2);    break;
         }
-        it++;
     }
 }
 
@@ -410,14 +393,12 @@ main (int argc, char *argv[])
     } catch (const std::invalid_argument& ia) {
         cerr << "Invalid argument: " << ia.what() << '\n'; return EXIT_FAILURE; }
     cout << progname << ": using " << in_fname << " as multiple seq alignment.\nDistance matrix from "
-         << dist_fname << " as distance matrix.\nWriting to " << out_fname
+         << dist_fname << "\nWriting to " << out_fname
          << "\nKeeping " << n_to_keep << " of the sequences\n";
 
 
-    map<string, fseq_prop> f_map;
     struct seq_props s_props;
     int gsl_ret;
-    //     thread gsl_thr (get_seq_list, ref(f_map), in_fname, &gsl_ret);
     thread gsl_thr (get_seq_list, ref(s_props), in_fname, &gsl_ret);
 
     vector<string> v_sacred;
@@ -453,10 +434,13 @@ main (int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
-    if (check_lists (f_map, v_cmt) == EXIT_FAILURE)
+    if (check_lists (s_props.f_map, v_cmt) == EXIT_FAILURE) {
+        cerr << __func__ << ": distmat file was \""<< dist_fname << "\", original sequences from \""<< in_fname<< "\"\n";
+        sac_thr.join();
         return EXIT_FAILURE;
+    }
     if (seedflag)
-        remove_seeds (f_map, v_cmt);
+        remove_seeds (s_props.f_map, v_cmt);
 
     if (sacred_fname) {
         sac_thr.join();
@@ -464,18 +448,18 @@ main (int argc, char *argv[])
             cerr << __func__ << ": err reading sacred file from "<< sacred_fname <<". Stopping\n";
             return EXIT_FAILURE;
         }
-        if (mark_sacred (f_map, v_sacred) != EXIT_SUCCESS)
+        if (mark_sacred (s_props.f_map, v_sacred) != EXIT_SUCCESS)
             return EXIT_FAILURE;
     }
 
-    remove_seq (f_map, v_cmt, v_dist, n_to_keep, choice);
+    remove_seq (s_props.f_map, v_cmt, v_dist, n_to_keep, choice);
 
     if (filter_col) {
         vector<bool> v_used(s_props.len, false);
         cout<< "we should now remove empty columns\n. I have a vector of length and size "<< v_used.size() << " "<< sizeof (v_used) << "\n";
     }
 
-    if (write_kept_seq (in_fname, out_fname, f_map) != EXIT_SUCCESS)
+    if (write_kept_seq (in_fname, out_fname, s_props.f_map) != EXIT_SUCCESS)
         return EXIT_FAILURE;
 
 #   undef check_the_map_is_ok
