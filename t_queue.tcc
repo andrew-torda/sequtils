@@ -23,13 +23,12 @@
 
 #include <string>  /* only during debugging */
 #include "t_queue.hh"
-
+#include "delay.hh"
 static void breaker2() {}
 
 static const unsigned char NOTHING      = 0;
 static const unsigned char CLOSED       = 0x1;
-static const unsigned char C_BUF_EMPTY  = 0x2;
-static const unsigned char ALIVE_WAITING= 0x4;
+static const unsigned char ALIVE_WAITING= 0x2;
 
 /* ---------------- constructors  ----------------------------
  */
@@ -38,14 +37,13 @@ template <typename T>
 void
 t_queue<T>::init() {
     //    alive_wants_notification = false;
-    q_state = C_BUF_EMPTY;
+    q_state = NOTHING;
     throttled = false;
     atm_size = 0;
     consum_cnt = 0;
     feed_cnt = 0;
     c_buf_was_empty = true;
     feed_buf_full = false;
-    do_throttling = false;
 }
 
 template <typename T>
@@ -70,7 +68,7 @@ t_queue<T>::t_queue (unsigned min_q, unsigned max_q) {
     min_in_q = min_q;
     max_in_q = max_q;
     max_buf = 1;
-    do_throttling = true;
+    do_throttling = false;
     init();
 }
 
@@ -80,7 +78,9 @@ t_queue<T>::t_queue (short unsigned intern_buf_siz, unsigned min_q, unsigned max
     max_in_q = max_q;
     max_buf = intern_buf_siz;
     do_throttling = true;
-    init();  
+    init();
+    if (max_in_q <= min_in_q)
+        exit(1);  /* This should throw a bad parameter error */
 }
 
 /* ---------------- flush   ----------------------------------
@@ -116,18 +116,15 @@ t_queue<T>::push(const T t)
     feed_buf.push_back (t);
     if (feed_buf.size() == max_buf)
         flush();
-#   ifdef want_throttling
+
     if (do_throttling) {
         if (atm_size >= max_in_q) {
-            if (!(q_state & ALIVE_WAITING)) {
-                throttled = true;
-                std::unique_lock<std::mutex> throttle_lock(throttle_mtx);
-                throttled_wait.wait (throttle_lock);
-                throttled = false;
-            }
+            std::unique_lock<std::mutex> throttle_lock(throttle_mtx);
+            throttled = true;
+            throttled_wait.wait (throttle_lock);
         }
+        throttled = false;
     }
-#   endif /* want_throttling */
 }
 
 /* ---------------- close  -----------------------------------
@@ -144,6 +141,23 @@ t_queue<T>::close()
     need_refill.notify_one(); /* say we are really finished */
 }
 
+/* ---------------- unthrottle -------------------------------
+ * Any time the consumer works on the queue, he might want to
+ * check if the queue has been throttled, so we put it into
+ * a convenient function.
+ */
+template <typename T>
+bool
+t_queue<T>::unthrottle()
+{
+    if (do_throttling) {
+        if (throttled && (atm_size <= min_in_q)) {
+            std::lock_guard<std::mutex> throttle_lock(throttle_mtx);
+            throttled_wait.notify_one();
+        }
+    }
+}
+
 /* ---------------- alive  -----------------------------------
  * This tells us if the queue is still alive. It does the
  * waiting if it is empty.
@@ -154,26 +168,32 @@ template <typename T>
 bool
 t_queue<T>::alive ()
 {
-    const unsigned char e_c = q_state; /* We only need to access atomic var once */
-
     if ( !(c_buf_was_empty) || (atm_size != 0)) /* most common case */
         return true;
 
-    if ( (e_c & CLOSED ) && c_buf_was_empty )
+    if ( (q_state & CLOSED ) && c_buf_was_empty )
         return false;
 
  /* Reaching here means the queue is not closed, but the buffer is empty */
 
     while ((atm_size == 0) &&  !(q_state & CLOSED)) {
+        if (do_throttling) {
+            std::lock_guard<std::mutex> throttle_lock(throttle_mtx);
+            if (throttled)
+                throttled_wait.notify_one();
+        }
+
         std::unique_lock<std::mutex> refill_lock(refill_mtx);
         q_state |= ALIVE_WAITING;
-        need_refill.wait(refill_lock);
+        need_refill.notify_one();
     }
     q_state &= ~ALIVE_WAITING;
     
     /* We have waited, but it could be that the queue simply closed */
-    if (atm_size == 0)
+    if (atm_size == 0) {
+        std::cerr << __func__ << " ending with atm_size = 0\n";
         return false;
+    }
     return true;
 }
 
@@ -216,27 +236,17 @@ t_queue<T>::front_and_pop()
             }
         }
         if (to_get) {
-            q_state &= (~C_BUF_EMPTY);
             c_buf_was_empty = false;
             atomic_fetch_sub (&atm_size, to_get);
         }
         consum_cnt = 0;
+        unthrottle();
     }
 
- #  ifdef want_throttling
-    if (do_throttling) {
-        if (throttled && (atm_size <= min_in_q)) {
-            std::lock_guard<std::mutex> throttle_lock(throttle_mtx);
-            throttled_wait.notify_one();
-        }
-    }
-#   endif /* want_throttling */
     tmp = consum_buf [ consum_cnt++];
 
-    if (consum_cnt == consum_buf.size()) {
-        q_state |= C_BUF_EMPTY;
+    if (consum_cnt == consum_buf.size())
         c_buf_was_empty = true;
-    }
 
     return tmp;
 }

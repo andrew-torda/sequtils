@@ -2,8 +2,6 @@
  * This is for testing the queue.
  */
 
-#include <cstdlib>
-
 #include <iostream>
 #include <thread>
 
@@ -14,6 +12,7 @@
 
 #include "t_queue.hh"
 
+#include "delay.hh"
 
 static void breaker() {}
 struct s {
@@ -21,7 +20,7 @@ struct s {
     unsigned j;
 };
 
-static unsigned maxnum = 150000;
+static unsigned maxnum = 50000;
 /* ---------------- consumer --------------------------------- */
 static void
 consumer (t_queue <struct s> &q)
@@ -29,7 +28,7 @@ consumer (t_queue <struct s> &q)
     unsigned n = 0;
     while (q.alive()) {
         struct s s = q.front_and_pop();
-        if (s.i < 10 || !(s.i % 50000) || s.i > (maxnum-4))
+        if (!(s.i % 5000) || s.i > (maxnum-4))
             std::cerr << "cnsm " << " "<< s.i << " ";
         n++;
     }
@@ -57,11 +56,48 @@ feeder (t_queue <struct s> &q)
 int
 main ()
 {
-    t_queue <struct s> q (10, 10, 10, 10);
-    std::thread cnsm (consumer, std::ref(q));
-    std::thread f ( feeder, std::ref(q));
-    f.join();
-    cnsm.join();
+
+    {
+        std::cout << "test with 3 ints\n";
+        t_queue <struct s> q (10, 11, 20);
+        std::thread cnsm (consumer, std::ref(q));
+        std::thread f ( feeder, std::ref(q));
+
+        f.join();
+        cnsm.join();
+        std::cout << '\n';
+    }
+
+    {
+        std::cout << "test with one int.. ";
+        t_queue <struct s> q (10);
+        std::thread cnsm (consumer, std::ref(q));
+        std::thread f ( feeder, std::ref(q));
+        f.join();
+        cnsm.join();
+        std::cout << "OK\n";
+    }
+    {
+        std::cout << "test with 2 ints.. ";
+        t_queue <struct s> q (8, 1000);
+        breaker();
+        std::thread cnsm (consumer, std::ref(q));
+        std::thread f ( feeder, std::ref(q));
+        f.join();
+        cnsm.join();
+        std::cout << "OK\n";
+    }
+
+    {
+        std::cout << "test with no ints.. ";
+        t_queue <struct s> q;
+        std::thread cnsm (consumer, std::ref(q));
+        std::thread f ( feeder, std::ref(q));
+        f.join();
+        cnsm.join();
+        std::cout << "OK\n";
+    }
+    
     return (EXIT_SUCCESS);
 }
 

@@ -41,6 +41,7 @@ private:
     bool do_throttling; /* Can the queue be throttled ? */
     void init();
     void flush();
+    bool unthrottle ();
 public:
     t_queue ();
     t_queue (short unsigned n);
