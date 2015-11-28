@@ -1,5 +1,17 @@
 /*
  * 21 Nov 2015
+ * This is a wrapper around the STL queue which is thread safe.
+ * There are
+ * - minimal locks when pushing and popping in the STL queue
+ * - an atomic counter for the size of the queue
+ * - local buffering - we do not directly put things in the queue, since
+ *   this leads to lots of contention. Instead we save them in local vectors.
+ *   When they are full/empty, we flush them or refill them.
+ * - throttling. You can say that the filler/producer should wait if the queue
+ *   has too many members. It will be woken up again when the number of items
+ *   goes below min_buf.
+ *
+ * At the moment, we have one size for the in/out buffers.
  */
 #ifndef T_QUEUE_TCC
 #define T_QUEUE_TCC 1
@@ -8,12 +20,16 @@
 #include <queue>
 #include <vector>
 
+
+#include <string>  /* only during debugging */
 #include "t_queue.hh"
 
+static void breaker2() {}
+
 static const unsigned char NOTHING      = 0;
-static const unsigned char Q_EMPTY      = 0x1;
-static const unsigned char CLOSED       = 0x2;
-static const unsigned char C_BUF_EMPTY  = 0x4;
+static const unsigned char CLOSED       = 0x1;
+static const unsigned char C_BUF_EMPTY  = 0x2;
+static const unsigned char ALIVE_WAITING= 0x4;
 
 /* ---------------- constructors  ----------------------------
  */
@@ -21,47 +37,97 @@ static const unsigned char C_BUF_EMPTY  = 0x4;
 template <typename T>
 void
 t_queue<T>::init() {
-    alive_wants_notification = false;
-    empty_closed = C_BUF_EMPTY;
+    //    alive_wants_notification = false;
+    q_state = C_BUF_EMPTY;
     throttled = false;
     atm_size = 0;
     consum_cnt = 0;
     feed_cnt = 0;
     c_buf_was_empty = true;
+    feed_buf_full = false;
     do_throttling = false;
 }
 
 template <typename T>
 t_queue<T>::t_queue() {
     do_throttling = false;
+    max_buf = 1;
     init();
 }
+
+template <typename T>   /* Called with internal buffering */
+t_queue<T>::t_queue (short unsigned intern_buf_siz) {
+    max_buf = intern_buf_siz;
+    do_throttling = false;
+    feed_buf.reserve(intern_buf_siz);
+    consum_buf.reserve(intern_buf_siz);
+    init();
+}
+
 
 template <typename T>
 t_queue<T>::t_queue (unsigned min_q, unsigned max_q) {
     min_in_q = min_q;
     max_in_q = max_q;
+    max_buf = 1;
     do_throttling = true;
     init();
 }
 
 template <typename T>
-t_queue<T>::t_queue (short unsigned prod_buf_siz, short unsigned consum_buf_size,
-                  unsigned min_q, unsigned max_q) {    
+t_queue<T>::t_queue (short unsigned intern_buf_siz, unsigned min_q, unsigned max_q) {    
     min_in_q = min_q;
     max_in_q = max_q;
-    max_buf = consum_buf_size;
+    max_buf = intern_buf_siz;
     do_throttling = true;
     init();  
 }
 
+/* ---------------- flush   ----------------------------------
+ * Flush the buffer for the producer / feeder.
+ */
 template <typename T>
-t_queue<T>::t_queue (short unsigned n) {  /* Called with internal buffering */
-    max_buf = n;
-    do_throttling = false;
-    feed_buf.reserve(n);
-    consum_buf.reserve(n);
-    init();
+void
+t_queue<T>::flush()
+{
+    unsigned char n = 0;
+    {
+        std::lock_guard<std::mutex> lock (q_mtx);
+        for (typename std::vector <T>::const_iterator it = feed_buf.begin() ; it != feed_buf.end(); ++it)
+            p_q.push (*it);
+    }
+    if (feed_buf.size())
+        atomic_fetch_add (&atm_size, feed_buf.size());
+
+    if (q_state & ALIVE_WAITING) {
+        std::lock_guard<std::mutex> refill_lock(refill_mtx);
+        need_refill.notify_one();
+    }
+
+    feed_buf.clear();
+}
+
+/* ---------------- push    ----------------------------------
+ */
+template <typename T>
+void
+t_queue<T>::push(const T t)
+{
+    feed_buf.push_back (t);
+    if (feed_buf.size() == max_buf)
+        flush();
+#   ifdef want_throttling
+    if (do_throttling) {
+        if (atm_size >= max_in_q) {
+            if (!(q_state & ALIVE_WAITING)) {
+                throttled = true;
+                std::unique_lock<std::mutex> throttle_lock(throttle_mtx);
+                throttled_wait.wait (throttle_lock);
+                throttled = false;
+            }
+        }
+    }
+#   endif /* want_throttling */
 }
 
 /* ---------------- close  -----------------------------------
@@ -70,9 +136,11 @@ t_queue<T>::t_queue (short unsigned n) {  /* Called with internal buffering */
  */
 template <typename T>
 void
-t_queue<T>::close() {
-    empty_closed |= CLOSED;
-    std::unique_lock<std::mutex> refill_lock(refill_mtx);
+t_queue<T>::close()
+{
+    flush();
+    q_state |= CLOSED;
+    std::lock_guard<std::mutex> refill_lock(refill_mtx);
     need_refill.notify_one(); /* say we are really finished */
 }
 
@@ -84,28 +152,24 @@ t_queue<T>::close() {
  */
 template <typename T>
 bool
-t_queue<T>::alive () {
-    const unsigned char e_c = empty_closed; /* We only need to access atomic var once */
-    const unsigned char really_closed = (Q_EMPTY | CLOSED | C_BUF_EMPTY);
+t_queue<T>::alive ()
+{
+    const unsigned char e_c = q_state; /* We only need to access atomic var once */
 
     if ( !(c_buf_was_empty) || (atm_size != 0)) /* most common case */
         return true;
 
-    if ( (e_c & really_closed) == really_closed) 
+    if ( (e_c & CLOSED ) && c_buf_was_empty )
         return false;
 
-    /* Reaching here means the queue is not closed, but the buffer is empty */
-    if (atm_size == 0) {
-        if (do_throttling)
-            if (throttled && (atm_size <= min_in_q))
-                throttled_wait.notify_one();
+ /* Reaching here means the queue is not closed, but the buffer is empty */
+
+    while ((atm_size == 0) &&  !(q_state & CLOSED)) {
         std::unique_lock<std::mutex> refill_lock(refill_mtx);
-        alive_wants_notification = true;
-        
-/*      The next while condition is a guard against "spurious" wakeups. */
-        while ((atm_size == 0) &&  ((empty_closed & really_closed) != really_closed))
-            need_refill.wait(refill_lock);
+        q_state |= ALIVE_WAITING;
+        need_refill.wait(refill_lock);
     }
+    q_state &= ~ALIVE_WAITING;
     
     /* We have waited, but it could be that the queue simply closed */
     if (atm_size == 0)
@@ -150,59 +214,31 @@ t_queue<T>::front_and_pop()
                 consum_buf.push_back(p_q.front());
                 p_q.pop();
             }
-            if (p_q.empty()) /* This has to be done while locked */
-                to_change |= Q_EMPTY;
         }
         if (to_get) {
-            empty_closed &= (~C_BUF_EMPTY);
+            q_state &= (~C_BUF_EMPTY);
             c_buf_was_empty = false;
             atomic_fetch_sub (&atm_size, to_get);
         }
         consum_cnt = 0;
     }
 
+ #  ifdef want_throttling
+    if (do_throttling) {
+        if (throttled && (atm_size <= min_in_q)) {
+            std::lock_guard<std::mutex> throttle_lock(throttle_mtx);
+            throttled_wait.notify_one();
+        }
+    }
+#   endif /* want_throttling */
     tmp = consum_buf [ consum_cnt++];
 
     if (consum_cnt == consum_buf.size()) {
-        to_change |= C_BUF_EMPTY;
+        q_state |= C_BUF_EMPTY;
         c_buf_was_empty = true;
     }
-    if (to_change) /* This announces that we think the queue is empty */
-        empty_closed |= to_change;      /* and/or our buffer is empty */
-
-    if (do_throttling)
-        if (throttled && (atm_size <= min_in_q))
-            throttled_wait.notify_one();
 
     return tmp;
 }
 
-/* ---------------- push    ----------------------------------
- */
-template <typename T>
-void
-t_queue<T>::push(const T t) {
-    const unsigned char not_empty = ~Q_EMPTY;
-    {
-        std::lock_guard<std::mutex> lock (q_mtx);
-        p_q.push (t);
-    }
-    empty_closed &= not_empty;
-    atm_size ++;
-    if (alive_wants_notification) {
-/*      man pages suggest the next lock, but it does not seem necessary */
-        std::unique_lock<std::mutex> refill_lock(refill_mtx);
-        alive_wants_notification = false;
-    }
-    need_refill.notify_one();
-    if (do_throttling) {
-        if (atm_size >= max_in_q) {
-            std::unique_lock<std::mutex> throttle_lock(throttle_mtx);
-            throttled = true;
-            std::cerr <<__func__ << " waiting";
-            throttled_wait.wait (throttle_lock);
-            throttled = false;
-        }
-    }
-}
 #endif /* T_QUEUE_TCC */

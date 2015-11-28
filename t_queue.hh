@@ -26,9 +26,8 @@ private:
     std::condition_variable need_refill;
     std::condition_variable throttled_wait;
     std::atomic<typename std::queue<T>::size_type> atm_size;
-    std::atomic<bool>   alive_wants_notification;
     std::atomic<bool>   throttled;
-    std::atomic<unsigned char> empty_closed;
+    std::atomic<unsigned char> q_state;
 
 
     std::vector<T> feed_buf;
@@ -37,16 +36,16 @@ private:
     unsigned max_buf;
     unsigned feed_cnt, consum_cnt;
     bool c_buf_was_empty;
+    bool feed_buf_full;
 
     bool do_throttling; /* Can the queue be throttled ? */
     void init();
-    
+    void flush();
 public:
     t_queue ();
-    t_queue (unsigned min_q, unsigned max_q);
     t_queue (short unsigned n);
-    t_queue (short unsigned prod_buf_siz, short unsigned consum_buf_size,
-             unsigned min_q, unsigned max_q);
+    t_queue (unsigned min_q, unsigned max_q);
+    t_queue (short unsigned prod_buf_siz, unsigned min_q, unsigned max_q);
     void close();
     bool alive();
     const T front_and_pop();
