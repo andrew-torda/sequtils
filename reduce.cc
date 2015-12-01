@@ -385,7 +385,7 @@ find_used_columns (const char *in_fname,
         nf_in++;
         const map<string, fseq_prop>::const_iterator f = f_map.find(fs.get_cmmt());
         if (f != missing) {
-            string s = fs.get_seq(); /* need this temporary, otherwise memory error */
+            const string s = fs.get_seq(); /* need this temporary, otherwise memory error */
             string::const_iterator s_it = s.begin();
             vector<bool>::iterator v_it = v_used.begin();
             for (unsigned short n = 0 ;s_it != s.end(); s_it++, v_it++, n++)
