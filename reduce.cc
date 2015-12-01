@@ -32,7 +32,7 @@
 #include "t_queue.hh"
 
 using namespace std;
-
+static void breaker(){}
 /* ---------------- structures and constants ----------------- */
 static const char GAPCHAR = '-';
 static const unsigned N_SEQBUF = 500;
@@ -385,13 +385,13 @@ find_used_columns (const char *in_fname,
         nf_in++;
         const map<string, fseq_prop>::const_iterator f = f_map.find(fs.get_cmmt());
         if (f != missing) {
-            string::const_iterator s_it = fs.get_seq().begin();
+            string s = fs.get_seq(); /* need this temporary, otherwise memory error */
+            string::const_iterator s_it = s.begin();
             vector<bool>::iterator v_it = v_used.begin();
-            for ( ;s_it != fs.get_seq().end(); s_it++, v_it++)
+            for (unsigned short n = 0 ;s_it != s.end(); s_it++, v_it++, n++)
                 if (*s_it != GAPCHAR)
                     if (! *v_it)
                         *v_it = true;
-
         }
     }
     in_file.close();
