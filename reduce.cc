@@ -34,6 +34,7 @@
 using namespace std;
 
 /* ---------------- structures and constants ----------------- */
+static const char GAPCHAR = '-';
 static const unsigned N_SEQBUF = 500;
 static const unsigned SEQ_LINE_LEN = 60; /* How many chars per line output seqs */
 static const char    *SEED_STR = "_seed_"; /* mafft marker for seed alignments */
@@ -55,7 +56,7 @@ static int usage ( const char *progname, const char *s)
     static const char *u
         = ": [-fsv -a sacred_file -c choice -e seed] mult_seq_align.msa \
 dist_mat.hat2 outfile.msa n_to_keep\n";
-    cerr << progname << s << "\n";
+    cerr << progname << s << '\n';
     cerr << progname << u;
     return EXIT_FAILURE;
 }
@@ -88,7 +89,7 @@ get_seq_list (struct seq_props & s_props, const char *in_fname, int *ret) {
     size_t len;
     ifstream infile (in_fname);
     if (!infile) {
-        errmsg += ": opening " + string (in_fname) + ": " + strerror(errno) + "\n";
+        errmsg += ": opening " + string (in_fname) + ": " + strerror(errno) + '\n';
         cerr << errmsg;
         *ret = EXIT_FAILURE;
         return;
@@ -100,7 +101,7 @@ get_seq_list (struct seq_props & s_props, const char *in_fname, int *ret) {
         infile.seekg (pos);
     }
     s_props.len = len;
-    t_queue <fseq> q_fs(10, 10, 10, 10);
+    t_queue <fseq> q_fs(N_SEQBUF);
     thread t1 (from_queue, ref(q_fs), ref(s_props.f_map));
 
     {
@@ -129,7 +130,7 @@ get_sacred (const char *sacred_fname, vector<string> &v_sacred, int *sacred_ret)
     string s;
     if (!sac_file) {
         cerr << __func__ << ": opening " << sacred_fname
-             << ": " << strerror(errno) << "\n";
+             << ": " << strerror(errno) << '\n';
         *sacred_ret = EXIT_FAILURE;
         return;
     }
@@ -151,7 +152,7 @@ check_lists ( const map<string, fseq_prop> &f_map, vector<string> &v_cmt)
     for (vector<string>::const_iterator it = v_cmt.begin(); it != v_cmt.end(); it++) {
         if (f_map.find(*it) == f_map.end()) {
             cerr << __func__<< " Sequence \"" << *it << "\" in distmat file not found\n" <<
-                "It was sequence number " << n << "\n";
+                "It was sequence number " << n << '\n';
             return EXIT_FAILURE;
         }
     }
@@ -293,22 +294,44 @@ remove_seeds (map<string, fseq_prop> &f_map, vector<string> &v_cmt)
             f_map.erase (*it);
 }
 
+/* ---------------- squash  ----------------------------------
+ * Given a string, keep only the positions which are set
+ * true in the vector.
+ */
+static void
+squash (string &s, const vector<bool> &v_used) {
+    string new_s;
+    new_s.reserve(s.size());
+    vector<bool>::const_iterator v_it = v_used.begin();
+    for( std::string::iterator s_it=s.begin(); s_it!=s.end(); ++s_it, ++v_it)
+        if (*v_it)
+            new_s += *s_it;
+    s = new_s;
+    s.shrink_to_fit();
+}
+
 /* ---------------- write_kept_seq ---------------------------
  * This is the final writing of sequences that we want to keep.
  */
 static int
 write_kept_seq (const char *in_fname, const char *out_fname,
-                map<string, fseq_prop> &f_map)
+                map<string, fseq_prop> &f_map, const vector<bool> &v_used)
 {
     ifstream in_file (in_fname);
+    bool filter_col;
+    if (v_used.size() != 0)
+        filter_col = true;
+    else
+        filter_col = false;
+
     fseq fs;
     if (! in_file) {
-        cerr << __func__ << "open fail on " << in_fname << "\n";
+        cerr << __func__ << "open fail on " << in_fname << '\n';
         return EXIT_FAILURE;
     }
     ofstream out_file (out_fname);
     if ( ! out_file) {
-        cerr << __func__ << ": opening " << out_fname  << ": " << strerror(errno) << "\n";
+        cerr << __func__ << ": opening " << out_fname  << ": " << strerror(errno) << '\n';
         return EXIT_FAILURE;
     }
 
@@ -316,15 +339,17 @@ write_kept_seq (const char *in_fname, const char *out_fname,
         const map<string, fseq_prop>::const_iterator missing = f_map.end();
         const map<string, fseq_prop>::const_iterator f1 = f_map.find(fs.get_cmmt());
         if (f1 != missing) {
-            out_file << fs.get_cmmt() << std::endl; /* write comment verbatim */
+            out_file << fs.get_cmmt() << '\n'; /* Write comment verbatim */
             size_t done = 0, to_go;   /* but the sequence could have long */
-            string s = fs.get_seq();    /* lines that should be split into */
-            to_go = s.length();         /* pieces. */
+            string s = fs.get_seq();  /* lines that should be split into pieces. */
+            if (filter_col)           /* Remove columns that were not used */
+                squash (s, v_used);
+            to_go = s.length();
             while (to_go) {
                 size_t this_line = SEQ_LINE_LEN;
                 if (SEQ_LINE_LEN > to_go)
                     this_line = to_go;
-                out_file << s.substr (done, this_line)<< std::endl;
+                out_file << s.substr (done, this_line)<< '\n';
                 done += this_line;
                 to_go -= this_line;
             }
@@ -335,6 +360,51 @@ write_kept_seq (const char *in_fname, const char *out_fname,
     in_file.close();
     out_file.close();
     return (EXIT_SUCCESS);
+}
+
+/* ---------------- find_used_columns ------------------------
+ * We have an alignment, but not all the columns are used.
+ * Visit every sequence in the alignment
+ * Visit every site in the sequence and mark the corresponding
+ * position as true if it is not a gap.
+ */
+static int
+find_used_columns (const char *in_fname,
+                   const map<string, fseq_prop> &f_map, vector<bool> &v_used,
+                   const short unsigned verbosity)
+{
+    unsigned nf_in = 0;
+    ifstream in_file (in_fname);
+    fseq fs;
+    if (! in_file) {
+        cerr << __func__ << "open fail on " << in_fname << '\n';
+        return EXIT_FAILURE;
+    }
+    const map<string, fseq_prop>::const_iterator missing = f_map.end();
+    while (fs.fill (in_file, 0)) {
+        nf_in++;
+        const map<string, fseq_prop>::const_iterator f = f_map.find(fs.get_cmmt());
+        if (f != missing) {
+            string::const_iterator s_it = fs.get_seq().begin();
+            vector<bool>::iterator v_it = v_used.begin();
+            for ( ;s_it != fs.get_seq().end(); s_it++, v_it++)
+                if (*s_it != GAPCHAR)
+                    if (! *v_it)
+                        *v_it = true;
+
+        }
+    }
+    in_file.close();
+    if (verbosity > 0) {
+        unsigned n = 0;
+        vector<bool>::iterator v_it = v_used.begin();
+        for (; v_it != v_used.end(); v_it++)
+            if (*v_it)
+                n++;
+        cout << __func__<< ": "<< nf_in << " sequences read. Of " <<
+            v_used.size() << " sites, "<< n<< " will be kept.\n";
+    }
+    return EXIT_SUCCESS;
 }
 
 /* ---------------- main  ------------------------------------ */
@@ -352,7 +422,7 @@ main (int argc, char *argv[])
     const char *progname = argv[0];
     const char *sacred_fname = nullptr;
 
-    while ((c = getopt(argc, argv, "a:c:e:sv")) != -1) {
+    while ((c = getopt(argc, argv, "a:c:e:fsv")) != -1) {
         switch (c) {
         case 'a':
             sacred_fname = optarg;                                     break;
@@ -396,7 +466,6 @@ main (int argc, char *argv[])
          << dist_fname << "\nWriting to " << out_fname
          << "\nKeeping " << n_to_keep << " of the sequences\n";
 
-
     struct seq_props s_props;
     int gsl_ret;
     thread gsl_thr (get_seq_list, ref(s_props), in_fname, &gsl_ret);
@@ -424,7 +493,7 @@ main (int argc, char *argv[])
         read_distmat (dist_fname, v_dist, v_cmt) ;
     } catch (runtime_error &e) {
         gsl_thr.join(); sac_thr.join();
-        cerr << "Error reading distance matrix: "<< e.what() << "\n";
+        cerr << "Error reading distance matrix: "<< e.what() << '\n';
         return EXIT_FAILURE;
     }
 
@@ -435,7 +504,7 @@ main (int argc, char *argv[])
     }
 
     if (check_lists (s_props.f_map, v_cmt) == EXIT_FAILURE) {
-        cerr << __func__ << ": distmat file was \""<< dist_fname << "\", original sequences from \""<< in_fname<< "\"\n";
+        cerr << __func__ << ": distmat file was \""<< dist_fname << "\", original sequences from \""<< in_fname<< '\n';
         sac_thr.join();
         return EXIT_FAILURE;
     }
@@ -454,21 +523,16 @@ main (int argc, char *argv[])
 
     remove_seq (s_props.f_map, v_cmt, v_dist, n_to_keep, choice);
 
+    vector<bool> v_used;
     if (filter_col) {
-        vector<bool> v_used(s_props.len, false);
-        cout<< "we should now remove empty columns\n. I have a vector of length and size "<< v_used.size() << " "<< sizeof (v_used) << "\n";
+        v_used.assign (s_props.len, false);
+        find_used_columns (in_fname, s_props.f_map, v_used, verbosity);
+    } else {
+        v_used.resize(0);
     }
 
-    if (write_kept_seq (in_fname, out_fname, s_props.f_map) != EXIT_SUCCESS)
+    if (write_kept_seq (in_fname, out_fname, s_props.f_map, v_used) != EXIT_SUCCESS)
         return EXIT_FAILURE;
-
-#   undef check_the_map_is_ok
-#   ifdef check_the_map_is_ok
-        cout << "dump f_map:\n";
-        for (map<string,fseq_prop>::const_iterator it=f_map.begin(); it!=f_map.end(); it++)
-            cout << it->first.substr (0,20) << "\n";
-        cout << "f_map size: "<< f_map.size() << "\n";
-#   endif
 
     return EXIT_SUCCESS;
 }
