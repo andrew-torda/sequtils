@@ -65,15 +65,14 @@ read_info (ifstream &infile, const char *dist_fname){
 
 struct int_comment {
     string cmmt;
-    unsigned i;
+    unsigned long i;
 };
 
 /* ---------------- split_cmmt  ------------------------------
  * given a sequence line from the mafft distance matrix file,
  * get out the index and the comment.
  */
-static struct int_comment // does the assembler change with the const
-                          // word ?
+static struct int_comment
 split_cmmt (const string s) {
     stringstream errmsg; errmsg << __func__;
     string::size_type n;
@@ -92,14 +91,13 @@ split_cmmt (const string s) {
 
 /* ---------------- read_mafft_seq ---------------------------
  */
-static const int
+static int
 read_mafft_seq (ifstream &infile, vector<string> &v_cmt,
                 const char *dist_fname, const unsigned nseq)
 {
     stringstream errmsg (string (__func__));
     errmsg << ": reading from " << string(dist_fname) << string ("\n");
     string t;
-    struct int_comment i_c;
     unsigned n = 0;
     for (unsigned i = 1; i <= nseq; i++) {  /* starting from 1 */
         if (!mgetline (infile, t)) {         /* allows the check below */
@@ -116,10 +114,9 @@ read_mafft_seq (ifstream &infile, vector<string> &v_cmt,
     return EXIT_SUCCESS;
 }
 
-static void breaker (){}
 /* ---------------- read_mafft_dist --------------------------
  */
-static const int
+static int
 read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
                 const char *dist_fname, const unsigned nseq)
 {
