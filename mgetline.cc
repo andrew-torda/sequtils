@@ -13,7 +13,7 @@
  * 
  * This version jumps over blank lines.
  */
-int
+unsigned
 mgetline ( std::ifstream& is, std::string& str)
 {
     static const unsigned BSIZ = 200;
