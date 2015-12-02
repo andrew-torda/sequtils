@@ -20,6 +20,7 @@ public:
     std::string const get_cmmt( void ) { return cmmt ;}
     std::string get_seq( void )  { return seq ;}
     size_t get_size() { return seq.size() ;}
+    void replace_seq (const std::string s) {seq = s;}
     bool fill (std::ifstream &infile, const size_t len_exp);
 private:
     std::string cmmt;
