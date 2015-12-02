@@ -10,14 +10,18 @@
  * We always tell string() how many characters to copy.
  * This should mean it does not have to search the string for
  * a null.
+ * 
+ * This version jumps over blank lines.
  */
-size_t
+int
 mgetline ( std::ifstream& is, std::string& str)
 {
     static const unsigned BSIZ = 200;
     char buf[BSIZ];
     str.clear();
+    bool blank = false;
     do {
+        blank = false;
         is.getline (buf, BSIZ);  /* 99.9 % of the time, this is all we do. */
         str.append (buf);        /* In the very rare cases that the line is */
         if (is.eof())            /* too long for the buffer, we will enter */
@@ -26,7 +30,10 @@ mgetline ( std::ifstream& is, std::string& str)
             break; /* this should not happen. */
         if (is.fail())
             is.clear();
-    } while (str.size() == (BSIZ - 1));
+        if (buf[0] == '\0')      /* Jump over blank lines */
+            blank = true;
+
+    } while (str.size() == (BSIZ - 1) || blank);
     
     return str.size();
 }
