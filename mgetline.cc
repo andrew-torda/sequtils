@@ -3,14 +3,6 @@
 #include <cstring>
 #include "mgetline.hh"
 
-
-/* ---------------- check_char -------------------------------
- * There is a nasty property to ifs.getline().
- * If it reads exactly the right number of characters and
- * ends on a newline, it does not set the failbit. This means
- * we cannot tell if we simply have a line of the perfect
- * length. Then we have to look 
-
 /* ---------------- mgetline ---------------------------------
  * This version of getline throws away anything after a comment
  * character
@@ -44,7 +36,7 @@ mc_getline ( std::ifstream& is, std::string& str, const char cmmt)
         if (buf[0] == '\0')      /* Jump over blank lines */
             blank = true;
     } while ( is.fail() || blank);
-    
+
     return str.size();
 }
 
@@ -55,12 +47,12 @@ mc_getline ( std::ifstream& is, std::string& str, const char cmmt)
  * We always tell string() how many characters to copy.
  * This should mean it does not have to search the string for
  * a null.
- * 
+ *
  * This version jumps over blank lines.
  */
 unsigned
 mgetline ( std::ifstream& is, std::string& str)
-{    
+{
     return mc_getline (is, str, '\0');
 }
 
