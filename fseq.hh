@@ -22,6 +22,8 @@ public:
     size_t get_size() { return seq.size() ;}
     void replace_seq (const std::string s) {seq = s;}
     bool fill (std::ifstream &infile, const size_t len_exp);
+    int write (std::ofstream &ofile, const unsigned short line_len);
+
 private:
     std::string cmmt;
     std::string seq;
