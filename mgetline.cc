@@ -58,6 +58,7 @@ mgetline ( std::ifstream& is, std::string& str)
 
 
 /* ---------------- testing  ---------------------------------
+ */
 #ifdef want_test_of_mgetline
 #include <iostream>
 main ()
