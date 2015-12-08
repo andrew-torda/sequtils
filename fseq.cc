@@ -1,5 +1,5 @@
 /* 10 oct 2015 */
-static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.5 2015/11/25 07:51:43 torda Exp torda $";
+static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.6 2015/12/04 07:58:37 torda Exp torda $";
 
 #include <csignal>
 #include <fstream>
@@ -84,10 +84,10 @@ fseq::fseq(ifstream &infile, const size_t len_exp) {
  * Given an open file, write the sequence, nicely formatted
  * to the file.
  */
-int
+void
 fseq::write (ofstream &ofile, const unsigned short line_len)
 {
-    unsigned short done = 0, to_go;
+    unsigned done = 0, to_go;
     ofile << this->get_cmmt() << '\n'; /* Write comment verbatim */
     string s = this->get_seq();  /* lines that should be split into pieces. */
     to_go = s.length();
