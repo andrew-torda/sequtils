@@ -20,11 +20,7 @@
 #include <queue>
 #include <vector>
 
-
-#include <string>  /* only during debugging */
 #include "t_queue.hh"
-#include "delay.hh"
-static void breaker2() {}
 
 static const unsigned char NOTHING      = 0;
 static const unsigned char CLOSED       = 0x1;
@@ -36,7 +32,6 @@ static const unsigned char ALIVE_WAITING= 0x2;
 template <typename T>
 void
 t_queue<T>::init() {
-    //    alive_wants_notification = false;
     q_state = NOTHING;
     throttled = false;
     atm_size = 0;
@@ -90,7 +85,6 @@ template <typename T>
 void
 t_queue<T>::flush()
 {
-    unsigned char n = 0;
     {
         std::lock_guard<std::mutex> lock (q_mtx);
         for (typename std::vector <T>::const_iterator it = feed_buf.begin() ; it != feed_buf.end(); ++it)
@@ -147,7 +141,7 @@ t_queue<T>::close()
  * a convenient function.
  */
 template <typename T>
-bool
+void
 t_queue<T>::unthrottle()
 {
     if (do_throttling) {
@@ -220,7 +214,6 @@ const T
 t_queue<T>::front_and_pop()
 {
     T tmp;
-    unsigned char to_change = 0;
     typename std::queue<T>::size_type to_get = 0;
     if (c_buf_was_empty) {
         consum_buf.clear();
