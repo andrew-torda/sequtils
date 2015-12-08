@@ -18,11 +18,11 @@ public:
     fseq (std::ifstream &infile, const size_t len_exp);
     fseq () {}
     std::string const get_cmmt( void ) { return cmmt ;}
-    std::string get_seq( void )  { return seq ;}
+    std::string const get_seq( void )  { return seq ;}
     size_t get_size() { return seq.size() ;}
     void replace_seq (const std::string s) {seq = s;}
     bool fill (std::ifstream &infile, const size_t len_exp);
-    int write (std::ofstream &ofile, const unsigned short line_len);
+    void write (std::ofstream &ofile, const unsigned short line_len);
 
 private:
     std::string cmmt;
