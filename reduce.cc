@@ -32,7 +32,7 @@
 #include "t_queue.hh"
 
 using namespace std;
-static void breaker(){}
+
 /* ---------------- structures and constants ----------------- */
 static const char GAPCHAR = '-';
 static const unsigned N_SEQBUF = 500;
