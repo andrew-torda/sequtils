@@ -36,7 +36,7 @@ set_vec (const std::string &s, vector<bool> &v)
  * Given a string and a vector of bools, walk down the string
  * and copy those positions where the boolean is true.
  */
-string
+static string
 squash_string_vec (std::string &s, const vector<bool> &v)
 {
     if (v.size() != s.size()) {
