@@ -34,6 +34,8 @@
 
 #include "distmat_rd.hh"
 #include "mgetline.hh"
+#include "prog_bug.hh"
+
 using namespace std;
 
 /* ---------------- structures and constants ----------------- */
@@ -47,20 +49,24 @@ static unsigned
 read_info (ifstream &infile, const char *dist_fname){
     stringstream errmsg (string (__func__));
     errmsg << ": reading from " + string (dist_fname) + string (", ");
-    unsigned i, nseq;
-    infile >> i;
-
-    if (i != 1) {
+    unsigned long i, nseq; /* excessive, but correct for stoul */
+    string t;
+    mgetline (infile, t);
+    if ((i = stoul(t)) != 1) {
         cerr << errmsg << "expected 1 on first line, got" + to_string(i) + string ("\n");
         return 0;
     }
-    infile >> nseq;  // How do i check if this worked ?
-    {
-        string junk;
-        mgetline (infile, junk); /* Once gets us over the newline */
-        mgetline (infile, junk); /* there is a float we do not use */
+    mgetline (infile, t);
+    nseq = stoul(t);
+    if (nseq > 10000000) {
+        cerr << errmsg << ". Broken. nseq seems to be "<<nseq<<'\n';
+        return 0;
     }
-    return nseq;
+    
+    mgetline (infile, t); /* there is a float we do not use */
+    if (nseq > numeric_limits<unsigned>::max())
+        prog_bug (__FILE__, __LINE__, "too many sequences");
+    return (unsigned)nseq;
 }
 
 struct int_comment {
@@ -178,4 +184,18 @@ read_distmat (const char *dist_fname, vector<dist_entry> &v_dist, vector<string>
                { return a.dist < b.dist; } );
 
     return EXIT_SUCCESS;
+}
+
+/* ---------------- dist_mat as class ------------------------
+ * Above, I wrote C.
+ * Now I will make a dist_mat class. This version has everything.
+ * It will be a bit memory hungry, but I need the name to
+ * index mapping as well as the distance matrix.
+ */
+dist_mat::dist_mat (const char *dist_fname)
+{
+    string errmsg = __func__;
+    errmsg += ": reading from " + string (dist_fname) + string (", ");
+    if (read_distmat (dist_fname, v_dist, v_cmt) == EXIT_FAILURE)
+        throw runtime_error (errmsg);
 }
