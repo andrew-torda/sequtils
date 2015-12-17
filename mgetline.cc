@@ -1,7 +1,12 @@
-#include <fstream>
+/* Nov 2015
+ */
 #include <string>
 #include <cstring>
+#include <fstream>
+#include <limits>
+
 #include "mgetline.hh"
+#include "prog_bug.hh"
 
 /* ---------------- mgetline ---------------------------------
  * This version of getline throws away anything after a comment
@@ -37,7 +42,10 @@ mc_getline ( std::ifstream& is, std::string& str, const char cmmt)
             blank = true;
     } while ( is.fail() || blank);
 
-    return str.size();
+    if (str.size() > std::numeric_limits<unsigned>::max())
+        prog_bug (__FILE__, __LINE__, "Line too long");
+
+    return (unsigned)str.size();
 }
 
 /* ---------------- mgetline ---------------------------------
