@@ -16,7 +16,6 @@
 
 static const char GAPCHAR = '-';
 using namespace std;
-static void breaker () { }
 
 /* ---------------- set_vec  ---------------------------------
  * Given a vector and a string, walk down the string. If a
