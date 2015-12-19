@@ -18,6 +18,8 @@
 /* ---------------- t_queue  --------------------------------- */
 template <typename T>
 class t_queue {
+public:
+    typedef unsigned char qstate_t;
 private:
     std::queue<T> p_q;
     std::mutex q_mtx;
@@ -27,7 +29,7 @@ private:
     std::condition_variable throttled_wait;
     std::atomic<typename std::queue<T>::size_type> atm_size;
     std::atomic<bool>   throttled;
-    std::atomic<unsigned char> q_state;
+    std::atomic<qstate_t> q_state;
 
 
     std::vector<T> feed_buf;
