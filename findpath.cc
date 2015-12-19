@@ -11,8 +11,6 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
-#include <map>
-#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -20,6 +18,7 @@
 
 #include "distmat_rd.hh"
 #include "prog_bug.hh"
+
 using namespace std;
 
 /* ---------------- structures and constants -----------------
@@ -28,6 +27,8 @@ struct seq_dist {
     string s;
     unsigned i,j;
 };
+
+static const unsigned INVALID_NODE = (unsigned) -1;
 
 /* ---------------- usage ------------------------------------
  */
@@ -38,10 +39,8 @@ usage (const char *progname, const char *s)
         = ": [-v] interesting_seq_file dist_mat_file\n";
     cerr << progname << ": "<<s << '\n' << progname << u;
     return EXIT_FAILURE;
-
-    
 }
-static void breaker(){}
+
 /* ---------------- get_spec_seqs ----------------------------
  * This are the special sequences. For the moment, there are
  * just two, but we use a vector. In the future, we will use
@@ -88,7 +87,8 @@ get_special_seq_ndx (const vector<string> &v_cmt,
             }
         }
         if (v_it_cmt == v_cmt.end())
-            cerr << __func__ << ": string not found: \""<<*v_it_spec<<"\" in the dist matrix file\n";
+            cerr << __func__ << ": string not found: \""
+                 << *v_it_spec << "\" in the dist matrix file\n";
     }
     if (v_spec_ndx.size() != v_spec_seqs.size())
         return EXIT_FAILURE;
@@ -108,13 +108,13 @@ typedef vector<edge> cmpnt_edges;
 class component {
 private:
     cmpnt_edges edges;
-    unsigned n_node;
-    unsigned n_edge;
+    vector<int>::size_type n_node;
+    vector<int>::size_type n_edge;
 public:
     component(const cmpnt_edges &);
     cmpnt_edges get_edges() const { return edges;}
-    unsigned get_n_node() const { return n_node;}
-    unsigned get_n_edge() const { return n_edge;}
+    vector<int>::size_type get_n_node() const { return n_node;}
+    vector<int>::size_type get_n_edge() const { return n_edge;}
 };
 
 component::component(const cmpnt_edges &c_e)
@@ -167,7 +167,7 @@ get_edges (const vector<unsigned> &v_spec_ndx,
         vector<unsigned>::const_iterator v_it = v_spec_ndx.begin();
         for (; v_it < v_spec_ndx.end(); v_it++) {
             cmpnt_edges c;
-            edge e = {*v_it, *v_it}; /* This is a fake edge that we will */
+            edge e = {*v_it, *v_it, -1.0}; /* This is a fake edge that we will */
             c.push_back(e);          /* remove at end */
             all_graphs.push_back(c);
         }
@@ -187,7 +187,7 @@ get_edges (const vector<unsigned> &v_spec_ndx,
 
     vector<unsigned> v_to_find = v_spec_ndx; /* set of special nodes */
     v_to_find.erase (v_to_find.begin());
-    
+
     vector<struct dist_entry>::const_iterator d_it = dist_mat_ent.begin();
     for (; d_it < dist_mat_ent.end() && v_to_find.size() > 0; d_it++) {
         const unsigned first  = d_it->ndx1;
@@ -272,7 +272,7 @@ get_edges (const vector<unsigned> &v_spec_ndx,
             }
         }
     }
-    
+
     component c(final_edges);
     return c;
 }
@@ -329,13 +329,15 @@ main_graph::insert_helper ( const unsigned label1, const unsigned label2,
     unsigned ndx2 = label2ndx[label2];
     n_list &n_l = get_adjlist(ndx1);      /* Push distance to node 2 */
     n_l.push_back( {ndx2, dist});         /* on to node 1's list */
-    
+
     /* The node is now on somebody's list. Now check if we have
      * the source node. */
     if (label1 == src_label) {
         src_dist_t &t = src_dist [ndx2];
-        if (t.dist != numeric_limits<float>::max())
-            prog_bug (__FILE__, __LINE__, "Hit node twice");
+#       ifdef debug_till_we_puke        
+            if (t.dist != numeric_limits<float>::max())
+                prog_bug (__FILE__, __LINE__, "Hit node twice");
+#       endif /* debug_till_we_puke */            
         if (dist == 0.0)
             dist += numeric_limits<float>::epsilon();
         t.dist = dist;
@@ -358,9 +360,9 @@ main_graph::add_index ( const unsigned node_label, const unsigned ndx) {
     src_dist_t tmp;
     tmp.dist = numeric_limits<float>::max();
     label2ndx[node_label] = ndx;
-    tmp.pred = ndx;
+    tmp.pred = INVALID_NODE;
     tmp.label = node_label;
-    tmp.p_dist = -1.0; /* Junk, just so as to highlight any bugs */
+    tmp.p_dist = -1.0;      /* Junk, just so as to highlight any bugs */
     src_dist.push_back(tmp);
 }
 
@@ -371,14 +373,16 @@ main_graph::main_graph (const component &cmpnt, const unsigned src_label, const 
 {
     unordered_set<unsigned> set;
     {
-        const unsigned n = cmpnt.get_n_node();
+        const vector<int>::size_type n = cmpnt.get_n_node();
         adj_lists.reserve (n);
         n_list empty_vec;
         adj_lists.insert (adj_lists.begin(), n, empty_vec);
         src_dist.reserve  (n);
         label2ndx.reserve (n);
     }
-    /* Make our indexing from labels to ndx */
+    /* Make our indexing from labels to ndx and simultaneously set
+     * up the src_dist array.
+     */
     {
         unsigned ndx = 0;
         for (const edge e: cmpnt.get_edges()) {
@@ -399,20 +403,21 @@ main_graph::main_graph (const component &cmpnt, const unsigned src_label, const 
                     dst = label2ndx[e.m2];
             }
         }
-    } breaker();
+    }
     src_dist[src].dist = 0.0; /* Set the source distance to itself */
-    for (src_dist_t &s : src_dist)
-        if (s.dist == numeric_limits<float>::max())
-            s.pred = src;
 
     /* Now have the src_dist array with indices and all distances set to max_float */
-    /* Next, insert the edges into the adjacency lists. Here, we will also update */
-    /* Any known edges to the source */
+    /* Next, insert the edges into the adjacency lists. */
 
     for (const edge e: cmpnt.get_edges())
         insert(e, src_label);
 
-    
+    for (nbor_dist_t n : get_adjlist (src)) {
+        src_dist[n.ndx].dist = n.dist;
+        src_dist[n.ndx].pred = src;
+        src_dist[n.ndx].p_dist = n.dist;
+    }
+
     for (n_list &n : adj_lists)
         n.shrink_to_fit();
 }
@@ -434,26 +439,24 @@ main_graph::get_next (const vector<bool> known)
     return ret;
 }
 
-
 /* ---------------- main_graph::get_path ---------------------
  * How did we get to the dst from source ?
- * This is messy, because at every step we need the distance
- * from i to j.
+ *
  */
 void
 main_graph::get_path ()
 {
     unsigned node = dst;
+    unsigned prev;
     cout << __func__ << " printing, source is "<< src << '\n';
+
     do {
         cout << "Node " << node << " labelled "<< src_dist[node].label
              << " dist to source "<< src_dist[node].dist
              << " dist to next node " << src_dist[node].p_dist << '\n';
+        prev = node;
         node = src_dist[node].pred;
-    } while (node != src);
-    cout << "Node "<< node<< " labelled "<< src_dist[node].label
-         << " dist to source "<< src_dist[node].dist
-         << " dist to next node "<< src_dist[node].p_dist << '\n';
+    } while (src_dist[prev].pred != INVALID_NODE);
 }
 
 /* ---------------- dijkstra ---------------------------------
@@ -484,7 +487,7 @@ dijkstra (const component &cmpnt, const dist_mat &d_m, const vector<unsigned> v_
             unsigned ndx = n.ndx;
             if ( !known[ndx]) {
                 float trial = curr_dist + dist;
-                if (src_dist[ndx].dist >= trial) {
+                if (src_dist[ndx].dist > trial) {
                     src_dist[ndx].dist   = trial;
                     src_dist[ndx].pred   = current;
                     src_dist[ndx].p_dist = dist;
@@ -496,9 +499,7 @@ dijkstra (const component &cmpnt, const dist_mat &d_m, const vector<unsigned> v_
     /* Now we have the path and distances. Have to think about how to return the
      * result */
     main_graph.get_path();
-    
-    cout << '\n';
-}
+ }
 
 /* ---------------- main  ------------------------------------
  */
@@ -514,7 +515,7 @@ main ( int argc, char *argv[])
 
     if (argc < 3)
         return (usage(progname, "Too few arguments"));
-    
+
     vector<string> v_spec_seqs;
 
     if (get_spec_seqs (seq_fname, v_spec_seqs) < 2) {
@@ -529,4 +530,5 @@ main ( int argc, char *argv[])
     component cmpnt = get_edges (v_spec_ndx, d_m.get_dist(), vbsty);
     describe_cmpnt (cmpnt, d_m);
     dijkstra (cmpnt, d_m, v_spec_ndx);
+    return EXIT_SUCCESS;
 }
