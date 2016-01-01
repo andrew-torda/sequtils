@@ -219,7 +219,7 @@ get_edges (const vector<unsigned> &v_spec_ndx,
         switch (nfound) {
         case 0:
             {
-                edge e = { first, second, dist};  //xxxxxxxx
+                edge e = { first, second, dist};
                 cmpnt_edges c;
                 c.push_back(e);
                 all_graphs.push_back(c);
@@ -285,7 +285,7 @@ describe_cmpnt (const component &c, const dist_mat &d_m)
     vector<string>::size_type n = d_m.get_n_mem();
     cout << "The connected component has " << c.get_n_node()
          << " sequences and "<< c.get_n_edge()<< " edges.\n"
-         << "The distance matrix had " << n << " sequences and "
+         << "The original distance matrix had " << n << " sequences and "
          << (n*(n-1))/2 << " edges.\n";
 }
 
@@ -295,6 +295,49 @@ typedef struct  {
     unsigned label; /* For relating back to names in original set */
     float p_dist; /* distance to predecessor */
 } src_dist_t;
+
+/* ---------------- path  ------------------------------------
+ * Class for storing a path.
+ * We want to be able to do nice printing. What we have to
+ * store are things like the node index in final graph, distance
+ * to source and preceding node. We will want to print out the
+ * longest edge and the names of the sequences. I cannot see
+ * any reason that we need anything more sophisticated than
+ * a vector. The only important thing is that they be stored
+ * in the right order. Let us put them in backwards. This makes
+ * it more natural to go from source to destination.
+ */
+class path {
+private:
+    struct node {
+        unsigned label; /* Index to node number in original set of seqs */
+        float src_dist;
+        float p_dist;  /* Distance to predecessor */
+    };
+    vector<struct node> nodes;
+public:
+    unsigned n_mbr;
+    path (const vector<src_dist_t> &, const unsigned, const unsigned);
+};
+
+path::path (const vector<src_dist_t> &src_dist, const unsigned dst, const unsigned src)
+{
+    n_mbr = 0;
+    {
+        unsigned node = dst;
+        unsigned prev;
+        do {
+            n_mbr++;
+            prev= node;
+        } while (src_dist[prev].pred != INVALID_NODE);
+    }
+    nodes.resize(n_mbr);
+    for (unsigned i = mbr -1; i >=0 ; i--) {
+        /* Here is where I am up to. Insert the nodes in reverse order */
+        xxxx;
+    }
+}
+
 
 /* ---------------- main_graph -------------------------------
  */
@@ -448,7 +491,7 @@ main_graph::get_path ()
 {
     unsigned node = dst;
     unsigned prev;
-    cout << __func__ << " printing, source is "<< src << '\n';
+    cout << __func__ << " printing. Source is node "<< src << '\n';
 
     do {
         cout << "Node " << node << " labelled "<< src_dist[node].label
@@ -499,7 +542,9 @@ dijkstra (const component &cmpnt, const dist_mat &d_m, const vector<unsigned> v_
     /* Now we have the path and distances. Have to think about how to return the
      * result */
     main_graph.get_path();
+    class path path (main_graph.src_dist, main_graph.src, main_graph.dst);
  }
+
 
 /* ---------------- main  ------------------------------------
  */
@@ -529,6 +574,7 @@ main ( int argc, char *argv[])
 
     component cmpnt = get_edges (v_spec_ndx, d_m.get_dist(), vbsty);
     describe_cmpnt (cmpnt, d_m);
-    dijkstra (cmpnt, d_m, v_spec_ndx);
+    dijkstra (cmpnt, d_m, v_spec_ndx); /* this should return a path */
+
     return EXIT_SUCCESS;
 }
