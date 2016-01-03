@@ -105,6 +105,7 @@ read_mafft_seq (ifstream &infile, vector<string> &v_cmt,
     errmsg << ": reading from " << string(dist_fname) << string ("\n");
     string t;
     unsigned n = 0;
+    v_cmt.reserve (nseq);
     for (unsigned i = 1; i <= nseq; i++) {  /* starting from 1 */
         if (!mgetline (infile, t)) {         /* allows the check below */
             std::cerr << errmsg << "error reading line\n";
@@ -117,6 +118,7 @@ read_mafft_seq (ifstream &infile, vector<string> &v_cmt,
         }
         v_cmt.push_back (string (">") + i_c.cmmt);
     }
+    v_cmt.shrink_to_fit();
     return EXIT_SUCCESS;
 }
 
@@ -128,21 +130,21 @@ read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
 {
     stringstream errmsg (string(__func__));
     errmsg << ": reading from " << string(dist_fname) << "\n";
+    size_t ntmp = nseq * (nseq - 1) / 2;
+    v_dist.reserve (ntmp);
     for (unsigned i = 0; i < nseq ; i++) {
         for (unsigned j = i+1; j < nseq; j++) {
-            struct dist_entry d_e; /* xxxxxxxxxx */
+            struct dist_entry d_e;
             float f;
-            //            infile >> f;
             size_t z = 0;
             char s[20];
             infile >> s;
             f = stof (s, &z);
-            //            cout << "i j s "<< i << " " << j << " " << s << "\n";
             d_e = {f, i, j};
             v_dist.push_back(d_e);
         }
     }   
-            
+    v_dist.shrink_to_fit();
     return EXIT_SUCCESS;
 }
 
@@ -173,12 +175,11 @@ read_distmat (const char *dist_fname, vector<dist_entry> &v_dist, vector<string>
     }
     if (read_mafft_seq (infile, v_cmt, dist_fname, nseq) == EXIT_FAILURE)
         return EXIT_FAILURE;
-    v_cmt.shrink_to_fit();
 
     if (read_mafft_dist (infile, v_dist, dist_fname, nseq) == EXIT_FAILURE)
         return EXIT_FAILURE;
     infile.close();
-    v_dist.shrink_to_fit();
+
     std::sort( v_dist.begin(), v_dist.end(),
                [](const struct dist_entry &a, const struct dist_entry &b)
                { return a.dist < b.dist; } );
@@ -198,4 +199,28 @@ dist_mat::dist_mat (const char *dist_fname)
     errmsg += ": reading from " + string (dist_fname) + string (", ");
     if (read_distmat (dist_fname, v_dist, v_cmt) == EXIT_FAILURE)
         throw runtime_error (errmsg);
+}
+
+/* ---------------- get_dist    ------------------------------
+ * Return the distance between the two named entries.
+ * Numbering is from zero up.
+ * This may be very slow, but we only do this for a few distances
+ * right at the end of the procedure.
+ */
+float
+dist_mat::get_pair_dist (const unsigned node1, const unsigned node2) const
+{
+    if (node1 == node2) return 0.0;
+    vector<dist_entry>::const_iterator d_it  = v_dist.begin();
+    const vector<dist_entry>::const_iterator d_end = v_dist.end();
+    for ( ; d_it < d_end; d_it++) {
+        unsigned ndx1 = d_it->ndx1;
+        unsigned ndx2 = d_it->ndx2;
+        if ( ((node1 == ndx1) && (node2 == ndx2)) ||
+             ((node1 == ndx2) && (node2 == ndx1)))
+            return d_it->dist;
+    }
+    string s = "Distance not found in dist mat, node indices: ";
+    s += to_string(node1) + ' ' + to_string (node2);
+    prog_bug (__FILE__, __LINE__, s.c_str());
 }
