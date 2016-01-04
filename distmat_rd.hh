@@ -18,8 +18,10 @@ private:
     std::vector<std::string> v_cmt;
 public:
     dist_mat (const char *);
-    const std::vector<std::string> get_cmt() const {return v_cmt;}
-    const std::vector<dist_entry> get_dist() const {return v_dist;}
+    std::vector<std::string> get_cmt_vec() const {return v_cmt;}
+    std::vector<dist_entry> get_dist() const {return v_dist;}
     std::vector<std::string>::size_type get_n_mem() const {return v_cmt.size();}
+    std::string get_cmt(const unsigned i) const { return v_cmt[i];}
+    float get_pair_dist (const unsigned, const unsigned) const ;
 };
 #endif /* DISTMAT_RD_HH */
