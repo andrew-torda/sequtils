@@ -1,5 +1,5 @@
 /* 3 jan 2016
- * Can only be included after <vector>
+ * Can only be included after <string> and <vector>
  */
 
 #ifndef __PATHPRINT_HH
@@ -20,14 +20,20 @@ class dist_mat;
 class path {
 private:
     struct node {
-        unsigned label;  /* Index to node number in original set of seqs */
-        float src_dist;  /* Distance to source */
-        float dst_dist;  /* Distance to dest (last) node */
-        float p_dist;    /* Distance to predecessor */
+        unsigned label;      /* Index to node number in original set of seqs */
+        float src_dist;      /* Distance to source */
+        float dst_dist;      /* Distance to dest (last) node */
+        float p_dist;        /* Distance to predecessor */
+        float orig_src_dist; /* Dist to source in original distance matrix */
+        float orig_dst_dist; /* Dist to destination in original distance matrix */
     };
     std::vector<struct node> nodes;
+    std::string nice_string (const node & node) const;
+
 public:
     path (const std::vector<src_dist_t> &, const unsigned, const unsigned, const dist_mat &);
+    int print (const char *outfile, const dist_mat &d_m) const ;
+
     unsigned n_mbr;
 };
 
