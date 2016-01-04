@@ -187,33 +187,37 @@ get_edges (const vector<unsigned> &v_spec_ndx,
      * From profiling, much time seems to be spend in if (first == i_it->m1...)
      * To make this faster, each component should be turned into a set, but would
      * this help much, since most of the graphs are really small ?
+     * With a bit more examination, this may be irrelevant. Of non-library time,
+     * these lines are expensive, but most of the time is spent converting strings
+     * to floats when reading the distance matrix.
      */
 
     vector<unsigned> v_to_find = v_spec_ndx; /* set of special nodes */
     v_to_find.erase (v_to_find.begin());
-    
+
     vector<struct dist_entry>::const_iterator d_it = dist_mat_ent.begin();
     for (; d_it < dist_mat_ent.end() && v_to_find.size() > 0; d_it++) {
         const unsigned first  = d_it->ndx1;
         const unsigned second = d_it->ndx2;
         const float dist      = d_it->dist;
-        vector<cmpnt_edges>::size_type f1, f2;
         unsigned char nfound = 0; /* can only have values 0, 1 or 2 */
         vector<cmpnt_edges>::const_iterator c_it = all_graphs.begin();
         unsigned i_cmpnt[2];
         unsigned i = 0;
-        for (f1 = 0, f2 = 0; c_it < all_graphs.end(); c_it++, i++) { // try and nfound <=2
+        for (; c_it < all_graphs.end(); c_it++, i++) {
             vector<edge>::const_iterator e_it = c_it->begin();
             vector<edge>::const_iterator t = c_it->begin();
-            if (vbsty > 2) {
-                cout << "Graph "<< i << ": edges\n";
-                for (; t< c_it->end();t++)
-                    cout<< t->m1<< " "<< t->m2 <<'\n';
-                cout << '\n';
+#           ifdef want_to_check_or_debug_graphs
+                if (vbsty > 2) {
+                    cout << "Graph "<< i << ": edges\n";
+                    for (; t< c_it->end();t++)
+                        cout<< t->m1<< " "<< t->m2 <<'\n';
+                    cout << '\n';
             }
+#           endif  /* want_to_check_or_debug_graphs  */
             for (; e_it < c_it->end(); e_it++) { /* within one component */
-                if (first  == e_it->m1 || first  == e_it->m2 || /* one profiler says this */
-                    second == e_it->m1 || second == e_it->m2) { /* is where the time is spent */
+                if (first  == e_it->m1 || first  == e_it->m2 ||
+                    second == e_it->m1 || second == e_it->m2) {
                     i_cmpnt[nfound] = i;
                     nfound++;
                     break;
@@ -496,7 +500,6 @@ dijkstra (const component &cmpnt, const dist_mat &d_m, const vector<unsigned> v_
     }
     const path path (main_graph.src_dist, main_graph.src, main_graph.dst, d_m);
     return path;
-    
  }
 
 
