@@ -184,6 +184,9 @@ get_edges (const vector<unsigned> &v_spec_ndx,
      * the first). We keep a copy of the list of nodes to look for
      * in v_to_find. It is not worth using a list or map since the set is
      * so small (typically only one member).
+     * From profiling, much time seems to be spend in if (first == i_it->m1...)
+     * To make this faster, each component should be turned into a set, but would
+     * this help much, since most of the graphs are really small ?
      */
 
     vector<unsigned> v_to_find = v_spec_ndx; /* set of special nodes */
@@ -199,7 +202,7 @@ get_edges (const vector<unsigned> &v_spec_ndx,
         vector<cmpnt_edges>::const_iterator c_it = all_graphs.begin();
         unsigned i_cmpnt[2];
         unsigned i = 0;
-        for (f1 = 0, f2 = 0; c_it < all_graphs.end(); c_it++, i++) {
+        for (f1 = 0, f2 = 0; c_it < all_graphs.end(); c_it++, i++) { // try and nfound <=2
             vector<edge>::const_iterator e_it = c_it->begin();
             vector<edge>::const_iterator t = c_it->begin();
             if (vbsty > 2) {
@@ -209,8 +212,8 @@ get_edges (const vector<unsigned> &v_spec_ndx,
                 cout << '\n';
             }
             for (; e_it < c_it->end(); e_it++) { /* within one component */
-                if (first  == e_it->m1 || first  == e_it->m2 ||
-                    second == e_it->m1 || second == e_it->m2) {
+                if (first  == e_it->m1 || first  == e_it->m2 || /* one profiler says this */
+                    second == e_it->m1 || second == e_it->m2) { /* is where the time is spent */
                     i_cmpnt[nfound] = i;
                     nfound++;
                     break;
