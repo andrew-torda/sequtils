@@ -17,6 +17,8 @@
 #include <vector>
 
 #include "distmat_rd.hh"
+#include "graphmisc.hh"
+#include "pathprint.hh"
 #include "prog_bug.hh"
 
 using namespace std;
@@ -27,8 +29,6 @@ struct seq_dist {
     string s;
     unsigned i,j;
 };
-
-static const unsigned INVALID_NODE = (unsigned) -1;
 
 /* ---------------- usage ------------------------------------
  */
@@ -72,13 +72,13 @@ get_spec_seqs (const char *seq_fname, vector<string> &v_spec)
  * corresponding indices.
  */
 static int
-get_special_seq_ndx (const vector<string> &v_cmt,
+get_special_seq_ndx (const vector<string> &v_cmt_vec,
                      const vector<string> &v_spec_seqs, vector<unsigned> &v_spec_ndx)
 {
     vector<string>::const_iterator v_it_spec = v_spec_seqs.begin();
     for (; v_it_spec < v_spec_seqs.end(); v_it_spec++) {
-        vector<string>::const_iterator v_it_cmt = v_cmt.begin();
-        for (unsigned i = 0; v_it_cmt < v_cmt.end(); v_it_cmt++, i++){
+        vector<string>::const_iterator v_it_cmt = v_cmt_vec.begin();
+        for (unsigned i = 0; v_it_cmt < v_cmt_vec.end(); v_it_cmt++, i++){
             string s = *v_it_cmt;
             string t = *v_it_spec;
             if (s == t) {
@@ -86,7 +86,7 @@ get_special_seq_ndx (const vector<string> &v_cmt,
                 break;
             }
         }
-        if (v_it_cmt == v_cmt.end())
+        if (v_it_cmt == v_cmt_vec.end())
             cerr << __func__ << ": string not found: \""
                  << *v_it_spec << "\" in the dist matrix file\n";
     }
@@ -150,6 +150,7 @@ comp_contains (const cmpnt_edges &c, vector<unsigned> &v_to_find)
         }
     }
 }
+
 /* ---------------- get_edges --------------------------------
  * We have a vector of special vertices, as their indices.
  * We read edges, collecting them into connected components.
@@ -158,7 +159,7 @@ comp_contains (const cmpnt_edges &c, vector<unsigned> &v_to_find)
  */
 static component
 get_edges (const vector<unsigned> &v_spec_ndx,
-           const vector<struct dist_entry> &dist_mat_ent, const unsigned vbsty)
+           const vector<struct dist_entry> &dist_mat_ent, unsigned vbsty)
 {
     vector<cmpnt_edges> all_graphs;
     /* Set up the array of connected components.
@@ -187,7 +188,7 @@ get_edges (const vector<unsigned> &v_spec_ndx,
 
     vector<unsigned> v_to_find = v_spec_ndx; /* set of special nodes */
     v_to_find.erase (v_to_find.begin());
-
+    
     vector<struct dist_entry>::const_iterator d_it = dist_mat_ent.begin();
     for (; d_it < dist_mat_ent.end() && v_to_find.size() > 0; d_it++) {
         const unsigned first  = d_it->ndx1;
@@ -209,7 +210,7 @@ get_edges (const vector<unsigned> &v_spec_ndx,
             }
             for (; e_it < c_it->end(); e_it++) { /* within one component */
                 if (first  == e_it->m1 || first  == e_it->m2 ||
-                    second == e_it->m2 || second == e_it->m2) {
+                    second == e_it->m1 || second == e_it->m2) {
                     i_cmpnt[nfound] = i;
                     nfound++;
                     break;
@@ -253,7 +254,8 @@ get_edges (const vector<unsigned> &v_spec_ndx,
             }
             break;
         default:
-            prog_bug (__FILE__, __LINE__, "Stupid");
+            string s = "Bad bug. nfound is " + to_string (nfound);
+            prog_bug (__FILE__, __LINE__, s.c_str());
         }
 
     }
@@ -289,56 +291,6 @@ describe_cmpnt (const component &c, const dist_mat &d_m)
          << (n*(n-1))/2 << " edges.\n";
 }
 
-typedef struct  {
-    float dist; /* distance to source */
-    unsigned pred;  /* Index of predecessor node */
-    unsigned label; /* For relating back to names in original set */
-    float p_dist; /* distance to predecessor */
-} src_dist_t;
-
-/* ---------------- path  ------------------------------------
- * Class for storing a path.
- * We want to be able to do nice printing. What we have to
- * store are things like the node index in final graph, distance
- * to source and preceding node. We will want to print out the
- * longest edge and the names of the sequences. I cannot see
- * any reason that we need anything more sophisticated than
- * a vector. The only important thing is that they be stored
- * in the right order. Let us put them in backwards. This makes
- * it more natural to go from source to destination.
- */
-class path {
-private:
-    struct node {
-        unsigned label; /* Index to node number in original set of seqs */
-        float src_dist;
-        float p_dist;  /* Distance to predecessor */
-    };
-    vector<struct node> nodes;
-public:
-    unsigned n_mbr;
-    path (const vector<src_dist_t> &, const unsigned, const unsigned);
-};
-
-path::path (const vector<src_dist_t> &src_dist, const unsigned dst, const unsigned src)
-{
-    n_mbr = 0;
-    {
-        unsigned node = dst;
-        unsigned prev;
-        do {
-            n_mbr++;
-            prev= node;
-        } while (src_dist[prev].pred != INVALID_NODE);
-    }
-    nodes.resize(n_mbr);
-    for (unsigned i = mbr -1; i >=0 ; i--) {
-        /* Here is where I am up to. Insert the nodes in reverse order */
-        xxxx;
-    }
-}
-
-
 /* ---------------- main_graph -------------------------------
  */
 typedef struct {
@@ -364,6 +316,11 @@ private:
     void insert_helper (const unsigned, const unsigned, float dist, const unsigned);
 };
 
+/* ---------------- main_graph::insert_helper ----------------
+ * This teeny little function takes a lot of the run time, presumably,
+ * because it is called so often. Can we run a line profiler on it and
+ * see what is taking the time ?
+ */
 void
 main_graph::insert_helper ( const unsigned label1, const unsigned label2,
                             float dist, const unsigned src_label)
@@ -373,15 +330,9 @@ main_graph::insert_helper ( const unsigned label1, const unsigned label2,
     n_list &n_l = get_adjlist(ndx1);      /* Push distance to node 2 */
     n_l.push_back( {ndx2, dist});         /* on to node 1's list */
 
-    /* The node is now on somebody's list. Now check if we have
-     * the source node. */
-    if (label1 == src_label) {
-        src_dist_t &t = src_dist [ndx2];
-#       ifdef debug_till_we_puke        
-            if (t.dist != numeric_limits<float>::max())
-                prog_bug (__FILE__, __LINE__, "Hit node twice");
-#       endif /* debug_till_we_puke */            
-        if (dist == 0.0)
+    if (label1 == src_label) {         /* The node is on somebody's list. */
+        src_dist_t &t = src_dist [ndx2];      /* Now check if we have the */
+        if (dist == 0.0)                                  /* source node. */
             dist += numeric_limits<float>::epsilon();
         t.dist = dist;
         t.label = label2;
@@ -482,6 +433,7 @@ main_graph::get_next (const vector<bool> known)
     return ret;
 }
 
+#ifdef want_get_path /* This was really for debugging output */
 /* ---------------- main_graph::get_path ---------------------
  * How did we get to the dst from source ?
  *
@@ -501,6 +453,7 @@ main_graph::get_path ()
         node = src_dist[node].pred;
     } while (src_dist[prev].pred != INVALID_NODE);
 }
+#endif /* want_get_path */
 
 /* ---------------- dijkstra ---------------------------------
  * The problem with our data is that we read up a big list of
@@ -508,7 +461,7 @@ main_graph::get_path ()
  * original sequences, this means storing n(n-1)/2 entries.
  * Here is the memory cheap version.
  */
-static void
+static class path
 dijkstra (const component &cmpnt, const dist_mat &d_m, const vector<unsigned> v_spec_ndx)
 {
     if (v_spec_ndx.size() != 2)
@@ -538,11 +491,9 @@ dijkstra (const component &cmpnt, const dist_mat &d_m, const vector<unsigned> v_
             }
         }
     }
-
-    /* Now we have the path and distances. Have to think about how to return the
-     * result */
-    main_graph.get_path();
-    class path path (main_graph.src_dist, main_graph.src, main_graph.dst);
+    const path path (main_graph.src_dist, main_graph.src, main_graph.dst, d_m);
+    return path;
+    
  }
 
 
@@ -569,12 +520,12 @@ main ( int argc, char *argv[])
     }
     dist_mat d_m(mat_in_fname);
     vector<unsigned> v_spec_ndx;
-    if (get_special_seq_ndx(d_m.get_cmt(), v_spec_seqs, v_spec_ndx) == EXIT_FAILURE)
+    if (get_special_seq_ndx(d_m.get_cmt_vec(), v_spec_seqs, v_spec_ndx) == EXIT_FAILURE)
         return EXIT_FAILURE;
 
     component cmpnt = get_edges (v_spec_ndx, d_m.get_dist(), vbsty);
     describe_cmpnt (cmpnt, d_m);
-    dijkstra (cmpnt, d_m, v_spec_ndx); /* this should return a path */
-
+    path path = dijkstra (cmpnt, d_m, v_spec_ndx);
+    path.print (nullptr, d_m);
     return EXIT_SUCCESS;
 }
