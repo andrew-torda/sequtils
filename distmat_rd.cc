@@ -122,7 +122,11 @@ read_mafft_seq (ifstream &infile, vector<string> &v_cmt,
     return EXIT_SUCCESS;
 }
 
+
 /* ---------------- read_mafft_dist --------------------------
+ * This seems to take a lot of time. I used to have
+            size_t z = 0; char s[20]; infile >> s; f = stof (s, &z)
+ * and it ran just as fast as directly saying infile >> f
  */
 static int
 read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
@@ -134,13 +138,8 @@ read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
     v_dist.reserve (ntmp);
     for (unsigned i = 0; i < nseq ; i++) {
         for (unsigned j = i+1; j < nseq; j++) {
-            struct dist_entry d_e;
-            float f;
-            size_t z = 0;
-            char s[20];
-            infile >> s;
-            f = stof (s, &z);
-            d_e = {f, i, j};
+            struct dist_entry d_e = { -99, i, j};
+            infile >> d_e.dist;
             v_dist.push_back(d_e);
         }
     }   
@@ -148,13 +147,6 @@ read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
     return EXIT_SUCCESS;
 }
 
-#ifdef boring_version_of_compare
-/* ---------------- dist_ent_cmp -----------------------------
- */
-static const bool
-dist_ent_cmp (const struct dist_entry &a, const struct dist_entry &b)
-{ return (a.dist < b.dist); }
-#endif /* boring_version_of_compare */
 /* ---------------- read_distmat -----------------------------
  */
 int
