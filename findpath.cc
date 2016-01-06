@@ -500,8 +500,7 @@ dijkstra (const component &cmpnt, const dist_mat &d_m, const vector<unsigned> v_
     }
     const path path (main_graph.src_dist, main_graph.src, main_graph.dst, d_m);
     return path;
- }
-
+}
 
 /* ---------------- main  ------------------------------------
  */
@@ -528,7 +527,6 @@ main ( int argc, char *argv[])
     vector<unsigned> v_spec_ndx;
     if (get_special_seq_ndx(d_m.get_cmt_vec(), v_spec_seqs, v_spec_ndx) == EXIT_FAILURE)
         return EXIT_FAILURE;
-
     component cmpnt = get_edges (v_spec_ndx, d_m.get_dist(), vbsty);
     describe_cmpnt (cmpnt, d_m);
     path path = dijkstra (cmpnt, d_m, v_spec_ndx);
