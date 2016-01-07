@@ -75,12 +75,10 @@ static int
 get_special_seq_ndx (const vector<string> &v_cmt_vec,
                      const vector<string> &v_spec_seqs, vector<unsigned> &v_spec_ndx)
 {
-    vector<string>::const_iterator v_it_spec = v_spec_seqs.begin();
-    for (; v_it_spec < v_spec_seqs.end(); v_it_spec++) {
+    for (string t : v_spec_seqs) {
         vector<string>::const_iterator v_it_cmt = v_cmt_vec.begin();
-        for (unsigned i = 0; v_it_cmt < v_cmt_vec.end(); v_it_cmt++, i++){
+        for (unsigned i = 0; v_it_cmt < v_cmt_vec.end(); v_it_cmt++, i++) {
             string s = *v_it_cmt;
-            string t = *v_it_spec;
             if (s == t) {
                 v_spec_ndx.push_back(i);
                 break;
@@ -88,7 +86,7 @@ get_special_seq_ndx (const vector<string> &v_cmt_vec,
         }
         if (v_it_cmt == v_cmt_vec.end())
             cerr << __func__ << ": string not found: \""
-                 << *v_it_spec << "\" in the dist matrix file\n";
+                 << t << "\" in the dist matrix file\n";
     }
     if (v_spec_ndx.size() != v_spec_seqs.size())
         return EXIT_FAILURE;
@@ -110,9 +108,21 @@ private:
     cmpnt_edges edges;
     vector<int>::size_type n_node;
     vector<int>::size_type n_edge;
+    typedef vector<edge>::const_iterator const_it;
 public:
     component(const cmpnt_edges &);
     cmpnt_edges get_edges() const { return edges;}
+    const_it begin() const {return edges.begin();}
+    const_it end()   const {return edges.end();}
+    void push_back (const edge &e) {edges.push_back(e);}
+    void insert (component &c2)
+    {
+        const vector<edge> e = c2.get_edges();
+        edges.insert (edges.end(), e.begin(), e.end()) ;
+    }
+
+    bool has_node (const unsigned);
+    void remove_dups ();
     vector<int>::size_type get_n_node() const { return n_node;}
     vector<int>::size_type get_n_edge() const { return n_edge;}
 };
@@ -123,32 +133,59 @@ component::component(const cmpnt_edges &c_e)
     n_node = 0;
     n_edge = 0;
     unordered_set<unsigned> set;
-    vector<edge>::const_iterator v_it = edges.begin();
-    for (; v_it < edges.end(); v_it++) {
-        set.insert(v_it->m1);
-        set.insert(v_it->m2);
+    for (edge e: edges) {
+        set.insert(e.m1);
+        set.insert(e.m2);
     }
     n_node = set.size();
     n_edge = c_e.size();
 }
 
-/* ---------------- comp_contains ----------------------------
- * Does a component (graph) contain any of the nodes on our
- * list of magic nodes ? If so, remove that node from the list.
+/* ---------------- has_node ---------------------------------
+ * return true / false, depending on whether this component
+ * has a node with this number (ndx).
+ * I will replace this with an unordered_set later.
  */
-static void
-comp_contains (const cmpnt_edges &c, vector<unsigned> &v_to_find)
+bool
+component::has_node(const unsigned ndx)
 {
-    vector<unsigned>::iterator v_it = v_to_find.begin();
-    for (; v_it < v_to_find.end(); v_it++) {
-        vector<edge>::const_iterator e_it = c.begin();
-        for (; e_it < c.end(); e_it++) {
-            if (*v_it == e_it->m1 || *v_it == e_it->m2) {
-                    v_to_find.erase (v_it);
-                    return ;
-            }
+    for (const edge e : edges)
+        if (e.m1 == ndx || e.m2 == ndx)
+            return true;
+    return false;
+}
+
+/* ---------------- remove_dups ------------------------------
+ * At the start, we put in edges of the form,
+ * node1 node1 -1
+ * Remove them.
+ */
+void
+component::remove_dups ()
+{
+    vector<edge>::iterator e_it = edges.begin();
+    for ( ; e_it != edges.end(); e_it++) {
+        if (e_it->m1 == e_it->m2) {
+            edges.erase(e_it);
+            return;
         }
     }
+}
+
+/* ---------------- which_component --------------------------
+ * Given the node number, find the edge it is in.
+ */
+static unsigned
+which_component (const vector<component> &all_graphs, const unsigned node_ndx)
+{
+    vector<component>::const_iterator c_it = all_graphs.begin();
+    for (; c_it != all_graphs.end(); c_it++) {
+        for (edge e: *c_it)     /* Look at edges within this one component */
+            if (node_ndx == e.m1 || node_ndx == e.m2)
+                return (c_it - all_graphs.begin());
+    }
+    prog_bug (__FILE__, __LINE__, "Broke looking for node");
+    return 0;
 }
 
 /* ---------------- get_edges --------------------------------
@@ -159,18 +196,22 @@ comp_contains (const cmpnt_edges &c, vector<unsigned> &v_to_find)
  */
 static component
 get_edges (const vector<unsigned> &v_spec_ndx,
-           const vector<struct dist_entry> &dist_mat_ent, unsigned vbsty)
+           const vector<struct dist_entry> &dist_mat_ent)
 {
-    vector<cmpnt_edges> all_graphs;
+    vector<component> all_graphs;
+    /* We keep a list of nodes we have seen. If a node has not been seen
+     * before, we void looking for it.
+     */
+    unordered_set<unsigned> seen_nodes;
     /* Set up the array of connected components.
      * Put each magic sequence into its own component */
     {
-        vector<unsigned>::const_iterator v_it = v_spec_ndx.begin();
-        for (; v_it < v_spec_ndx.end(); v_it++) {
+        for (unsigned v: v_spec_ndx) {
             cmpnt_edges c;
-            edge e = {*v_it, *v_it, -1.0}; /* This is a fake edge that we will */
+            edge e = {v, v, -1.0}; /* This is a fake edge that we will */
             c.push_back(e);          /* remove at end */
             all_graphs.push_back(c);
+            seen_nodes.insert(v);
         }
     }
 
@@ -194,96 +235,87 @@ get_edges (const vector<unsigned> &v_spec_ndx,
 
     vector<unsigned> v_to_find = v_spec_ndx; /* set of special nodes */
     v_to_find.erase (v_to_find.begin());
-
     vector<struct dist_entry>::const_iterator d_it = dist_mat_ent.begin();
     for (; d_it < dist_mat_ent.end() && v_to_find.size() > 0; d_it++) {
         const unsigned first  = d_it->ndx1;
         const unsigned second = d_it->ndx2;
         const float dist      = d_it->dist;
         unsigned char nfound = 0; /* can only have values 0, 1 or 2 */
-        vector<cmpnt_edges>::const_iterator c_it = all_graphs.begin();
-        unsigned i_cmpnt[2];
-        unsigned i = 0;
-        for (; c_it < all_graphs.end(); c_it++, i++) {
-            vector<edge>::const_iterator e_it = c_it->begin();
-            vector<edge>::const_iterator t = c_it->begin();
-#           ifdef want_to_check_or_debug_graphs
-                if (vbsty > 2) {
-                    cout << "Graph "<< i << ": edges\n";
-                    for (; t< c_it->end();t++)
-                        cout<< t->m1<< " "<< t->m2 <<'\n';
-                    cout << '\n';
-            }
-#           endif  /* want_to_check_or_debug_graphs  */
-            for (; e_it < c_it->end(); e_it++) { /* within one component */
-                if (first  == e_it->m1 || first  == e_it->m2 ||
-                    second == e_it->m1 || second == e_it->m2) {
-                    i_cmpnt[nfound] = i;
-                    nfound++;
-                    break;
-                }
-            }
+        unsigned c_ndx_1, c_ndx_2;
+        bool first_known, second_known;
+        const unordered_set<unsigned>::const_iterator e_not_found = seen_nodes.end();
+        if (seen_nodes.find(first) == e_not_found)
+             first_known = false;
+        else first_known = true;
+        if (seen_nodes.find(second) == e_not_found)
+            second_known = false;
+        else second_known = true;
+        
+        if ((!first_known) && (!second_known)) {
+            nfound = 0;
+        } else if ( first_known && second_known) {
+            nfound = 2;
+            c_ndx_1 = which_component (all_graphs, first);
+            c_ndx_2 = which_component (all_graphs, second);
+            if (c_ndx_1 > c_ndx_2)
+                swap (c_ndx_1, c_ndx_2);
+        } else {
+            nfound = 1;
+            if (first_known)
+                c_ndx_1 = which_component (all_graphs, first);
+            else
+                c_ndx_1 = which_component (all_graphs, second);
         }
+
         switch (nfound) {
-        case 0:
+        case 0:  /* Start a new component */
             {
                 edge e = { first, second, dist};
                 cmpnt_edges c;
                 c.push_back(e);
                 all_graphs.push_back(c);
-                if (vbsty > 2)
-                    cout <<__func__<< ": start new component with edge " <<first<< " "
-                         << second<<'\n';
             }
             break;
         case 1: /* Add to existing component */
             {
                 edge e = { first, second, dist};
-                all_graphs[i_cmpnt[0]].push_back (e);
+                all_graphs[c_ndx_1].push_back (e);
             }
-            if (vbsty > 2)
-                cout<< __func__ << ": adding "<< first << " "<< second
-                    << " to component "<< i_cmpnt[0]<<'\n';
             break;
-        case 2: /* Add the edge, then join the two components */
-            {
-                if (vbsty > 2)
-                    cout << __func__<< ": moving component "<<i_cmpnt [1]
-                         << " to "<< i_cmpnt[0]<< " because of "<< first<< " "<<second<<'\n';
-                cmpnt_edges *c1 = &(all_graphs[i_cmpnt[0]]);
-                edge e = { first, second, dist};
-                c1->push_back(e);
-                cmpnt_edges c2 = all_graphs[i_cmpnt[1]];
-                c1->insert(c1->end(), c2.begin(), c2.end());
-                all_graphs.erase(all_graphs.begin() + i_cmpnt[1]);
-                if (i_cmpnt[0] == 0) /* are we merging into first component ? */
-                    comp_contains (c2, v_to_find );
+        case 2: /* If the edge joins two components, add it and merge them */
+            {   /* If both edges are within one edge, forget it. */
+                if (c_ndx_1 != c_ndx_2) {
+                    component *c1 = &(all_graphs[c_ndx_1]); // Does this have to be a pointer ?
+                    edge e = { first, second, dist};
+                    c1->push_back(e);
+                    component c2 = all_graphs[c_ndx_2];
+                    c1->insert(c2);
+                    all_graphs.erase(all_graphs.begin() + c_ndx_2);
+                    /* Check if this is one of the special nodes we are waiting on */
+                    if (c_ndx_1 == 0)
+                        for (vector<unsigned>::iterator v_it = v_to_find.begin(); v_it < v_to_find.end(); v_it++)
+                            if (c2.has_node (*v_it))
+                                v_to_find.erase (v_it);
+                }
             }
             break;
         default:
             string s = "Bad bug. nfound is " + to_string (nfound);
             prog_bug (__FILE__, __LINE__, s.c_str());
         }
-
+        seen_nodes.insert(first);
+        seen_nodes.insert(second);
     }
     /* We are finished with merging and finding nodes. We have to copy the
      * first graph and then clean it up. If we have n special nodes, there
      * should be n edges we do not want.
      */
-    cmpnt_edges final_edges;
-    final_edges = all_graphs[0]; /* What we will return */
-    for (unsigned i = 0; i < v_spec_ndx.size(); i++) {
-        vector<edge>::iterator v_it = final_edges.begin();
-        for (; v_it < final_edges.end(); v_it++) {
-            if (v_it->m1 == v_it->m2) {
-                final_edges.erase (v_it);
-                break;
-            }
-        }
-    }
 
-    component c(final_edges);
-    return c;
+    for (unsigned i = 0; i < v_spec_ndx.size(); i++)
+        all_graphs[0].remove_dups();
+
+    component final_graph (all_graphs[0].get_edges());
+    return final_graph;
 }
 
 /* ---------------- describe_cmpnt ---------------------------
@@ -373,6 +405,9 @@ main_graph::add_index ( const unsigned node_label, const unsigned ndx) {
 main_graph::main_graph (const component &cmpnt, const unsigned src_label, const unsigned dst_label)
 {
     unordered_set<unsigned> set;
+    const unsigned rubbish = numeric_limits<unsigned>::max();
+    src = rubbish;
+    dst = rubbish;
     {
         const vector<int>::size_type n = cmpnt.get_n_node();
         adj_lists.reserve (n);
@@ -405,6 +440,10 @@ main_graph::main_graph (const component &cmpnt, const unsigned src_label, const 
             }
         }
     }
+    if (src == rubbish)
+        prog_bug (__FILE__, __LINE__, "src not found");
+    if (dst == rubbish)
+        prog_bug (__FILE__, __LINE__, "dst not found");
     src_dist[src].dist = 0.0; /* Set the source distance to itself */
 
     /* Now have the src_dist array with indices and all distances set to max_float */
@@ -440,28 +479,6 @@ main_graph::get_next (const vector<bool> known)
     return ret;
 }
 
-#ifdef want_get_path /* This was really for debugging output */
-/* ---------------- main_graph::get_path ---------------------
- * How did we get to the dst from source ?
- *
- */
-void
-main_graph::get_path ()
-{
-    unsigned node = dst;
-    unsigned prev;
-    cout << __func__ << " printing. Source is node "<< src << '\n';
-
-    do {
-        cout << "Node " << node << " labelled "<< src_dist[node].label
-             << " dist to source "<< src_dist[node].dist
-             << " dist to next node " << src_dist[node].p_dist << '\n';
-        prev = node;
-        node = src_dist[node].pred;
-    } while (src_dist[prev].pred != INVALID_NODE);
-}
-#endif /* want_get_path */
-
 /* ---------------- dijkstra ---------------------------------
  * The problem with our data is that we read up a big list of
  * distances. We could put them into a big matrix, but for n
@@ -476,6 +493,7 @@ dijkstra (const component &cmpnt, const dist_mat &d_m, const vector<unsigned> v_
 
     unsigned src_label = v_spec_ndx[0];
     unsigned dst_label = v_spec_ndx[1];
+
     class main_graph main_graph (cmpnt, src_label, dst_label);
     vector<bool> known (cmpnt.get_n_node(), false);
 
@@ -510,7 +528,6 @@ main ( int argc, char *argv[])
     const char *progname = argv[0],
                *seq_fname = NULL,
                *mat_in_fname = NULL;
-    unsigned vbsty = 1;
     seq_fname = argv[1];
     mat_in_fname = argv[2];
 
@@ -527,7 +544,7 @@ main ( int argc, char *argv[])
     vector<unsigned> v_spec_ndx;
     if (get_special_seq_ndx(d_m.get_cmt_vec(), v_spec_seqs, v_spec_ndx) == EXIT_FAILURE)
         return EXIT_FAILURE;
-    component cmpnt = get_edges (v_spec_ndx, d_m.get_dist(), vbsty);
+    component cmpnt = get_edges (v_spec_ndx, d_m.get_dist());
     describe_cmpnt (cmpnt, d_m);
     path path = dijkstra (cmpnt, d_m, v_spec_ndx);
     path.print (nullptr, d_m);
