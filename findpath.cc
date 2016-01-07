@@ -225,12 +225,6 @@ get_edges (const vector<unsigned> &v_spec_ndx,
      * the first). We keep a copy of the list of nodes to look for
      * in v_to_find. It is not worth using a list or map since the set is
      * so small (typically only one member).
-     * From profiling, much time seems to be spend in if (first == i_it->m1...)
-     * To make this faster, each component should be turned into a set, but would
-     * this help much, since most of the graphs are really small ?
-     * With a bit more examination, this may be irrelevant. Of non-library time,
-     * these lines are expensive, but most of the time is spent converting strings
-     * to floats when reading the distance matrix.
      */
 
     vector<unsigned> v_to_find = v_spec_ndx; /* set of special nodes */
@@ -285,14 +279,13 @@ get_edges (const vector<unsigned> &v_spec_ndx,
         case 2: /* If the edge joins two components, add it and merge them */
             {   /* If both edges are within one edge, forget it. */
                 if (c_ndx_1 != c_ndx_2) {
-                    component *c1 = &(all_graphs[c_ndx_1]); // Does this have to be a pointer ?
+                    component *c1 = &(all_graphs[c_ndx_1]);
                     edge e = { first, second, dist};
                     c1->push_back(e);
                     component c2 = all_graphs[c_ndx_2];
                     c1->insert(c2);
                     all_graphs.erase(all_graphs.begin() + c_ndx_2);
-                    /* Check if this is one of the special nodes we are waiting on */
-                    if (c_ndx_1 == 0)
+                    if (c_ndx_1 == 0)   /* Check if this is one of the special nodes we are waiting on */
                         for (vector<unsigned>::iterator v_it = v_to_find.begin(); v_it < v_to_find.end(); v_it++)
                             if (c2.has_node (*v_it))
                                 v_to_find.erase (v_it);
