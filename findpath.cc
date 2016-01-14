@@ -11,15 +11,20 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <utility> /* used by seq_index */
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <unistd.h>
 #include <vector>
 
+#include "bust.hh"
 #include "distmat_rd.hh"
+#include "fseq.hh"
 #include "graphmisc.hh"
 #include "pathprint.hh"
 #include "prog_bug.hh"
+#include "seq_index.hh"
 
 using namespace std;
 
@@ -30,15 +35,17 @@ struct seq_dist {
     unsigned i,j;
 };
 
+static const float BAD_DIST = -1.0;
+
 /* ---------------- usage ------------------------------------
  */
 static int
 usage (const char *progname, const char *s)
 {
     static const char *u
-        = ": [-v] interesting_seq_file dist_mat_file\n";
-    cerr << progname << ": "<<s << '\n' << progname << u;
-    return EXIT_FAILURE;
+        = "[-s seq_out_fname] [-u unloved_seqs] interesting_seq_file dist_mat_file [seq_in_fname]\n";
+    cerr << progname << ": "<< s<<'\n';
+    return (bust (progname, u));
 }
 
 /* ---------------- get_spec_seqs ----------------------------
@@ -51,13 +58,13 @@ get_spec_seqs (const char *seq_fname, vector<string> &v_spec)
 {
     string errmsg = __func__;
     ifstream infile (seq_fname);
-    int nseq = 0;
     if (!infile) {
         errmsg += ": opening " + string (seq_fname) + ": " + strerror(errno) + '\n';
         cerr << errmsg;
         return (0);
     }
     string s;
+    int nseq = 0;
     while (getline (infile, s)) {
         v_spec.push_back (s);
         nseq++;
@@ -89,7 +96,7 @@ get_special_seq_ndx (const vector<string> &v_cmt_vec,
                  << t << "\" in the dist matrix file\n";
     }
     if (v_spec_ndx.size() != v_spec_seqs.size())
-        return EXIT_FAILURE;
+        return (bust (__func__, "v_spec_ndx and v_spec_seqs, different sizes"));
     v_spec_ndx.shrink_to_fit();
     return EXIT_SUCCESS;
 }
@@ -123,6 +130,8 @@ public:
 
     bool has_node (const unsigned);
     void remove_dups ();
+    void describe (const dist_mat &d_m);
+
     vector<int>::size_type get_n_node() const { return n_node;}
     vector<int>::size_type get_n_edge() const { return n_edge;}
 };
@@ -182,10 +191,9 @@ which_component (const vector<component> &all_graphs, const unsigned node_ndx)
     for (; c_it != all_graphs.end(); c_it++) {
         for (edge e: *c_it)     /* Look at edges within this one component */
             if (node_ndx == e.m1 || node_ndx == e.m2)
-                return (c_it - all_graphs.begin());
+                return (unsigned(c_it - all_graphs.begin()));
     }
     prog_bug (__FILE__, __LINE__, "Broke looking for node");
-    return 0;
 }
 
 /* ---------------- get_edges --------------------------------
@@ -208,7 +216,7 @@ get_edges (const vector<unsigned> &v_spec_ndx,
     {
         for (unsigned v: v_spec_ndx) {
             cmpnt_edges c;
-            edge e = {v, v, -1.0}; /* This is a fake edge that we will */
+            edge e = {v, v, BAD_DIST}; /* This is a fake edge that we will */
             c.push_back(e);          /* remove at end */
             all_graphs.push_back(c);
             seen_nodes.insert(v);
@@ -235,7 +243,7 @@ get_edges (const vector<unsigned> &v_spec_ndx,
         const unsigned second = d_it->ndx2;
         const float dist      = d_it->dist;
         unsigned char nfound = 0; /* can only have values 0, 1 or 2 */
-        unsigned c_ndx_1, c_ndx_2;
+        unsigned c_ndx_1 = 0, c_ndx_2 = 0;
         bool first_known, second_known;
         const unordered_set<unsigned>::const_iterator e_not_found = seen_nodes.end();
         if (seen_nodes.find(first) == e_not_found)
@@ -244,7 +252,7 @@ get_edges (const vector<unsigned> &v_spec_ndx,
         if (seen_nodes.find(second) == e_not_found)
             second_known = false;
         else second_known = true;
-        
+
         if ((!first_known) && (!second_known)) {
             nfound = 0;
         } else if ( first_known && second_known) {
@@ -313,12 +321,12 @@ get_edges (const vector<unsigned> &v_spec_ndx,
 
 /* ---------------- describe_cmpnt ---------------------------
  */
-static void
-describe_cmpnt (const component &c, const dist_mat &d_m)
+void
+component::describe (const dist_mat &d_m)
 {
     vector<string>::size_type n = d_m.get_n_mem();
-    cout << "The connected component has " << c.get_n_node()
-         << " sequences and "<< c.get_n_edge()<< " edges.\n"
+    cout << "The connected component has " << this->get_n_node()
+         << " sequences and "<< this->get_n_edge()<< " edges.\n"
          << "The original distance matrix had " << n << " sequences and "
          << (n*(n-1))/2 << " edges.\n";
 }
@@ -388,7 +396,7 @@ main_graph::add_index ( const unsigned node_label, const unsigned ndx) {
     label2ndx[node_label] = ndx;
     tmp.pred = INVALID_NODE;
     tmp.label = node_label;
-    tmp.p_dist = -1.0;      /* Junk, just so as to highlight any bugs */
+    tmp.p_dist = BAD_DIST;      /* Junk, just so as to highlight any bugs */
     src_dist.push_back(tmp);
 }
 
@@ -513,24 +521,98 @@ dijkstra (const component &cmpnt, const dist_mat &d_m, const vector<unsigned> v_
     return path;
 }
 
+
+/* ---------------- write_loved_seqs -------------------------
+ * Go to the output file and write the sequences that are
+ * part of the component (connected graph).
+ */
+static int
+write_loved_seqs (const char *seq_in_fname, const char *seq_out_fname,
+                  const dist_mat &d_m, const vector<bool> &v_loved)
+{
+    seq_index s_i;
+    cout << __func__<< " Writing sequences from "<< seq_in_fname
+         << " to "<< seq_out_fname << '\n';
+    if (s_i(seq_in_fname) == EXIT_FAILURE)
+        return EXIT_FAILURE;
+
+    ofstream outfile (seq_out_fname);
+    if (!outfile)
+        return (bust(__func__, ("Open fail" + string(seq_out_fname) + ": " + strerror(errno) + '\n')));
+
+    for (unsigned i = 0; i < v_loved.size(); i++) {
+        if (v_loved[i]) {
+            string s = d_m.get_cmt(i);
+            fseq fs = s_i.get_seq_by_cmmt(s);
+            fs.clean(false);
+            fs.write (outfile, 60);
+        }
+    }
+    
+    return EXIT_SUCCESS;
+}
+
+/* ---------------- get_loved --------------------------------
+ */
+static int
+write_unloved_seqs (const char *unloved_fname, const dist_mat& d_m, const vector<bool>v_loved)
+{
+    ofstream outfile (unloved_fname);
+    if (!outfile)
+        return (bust(__func__, ( "Open fail on " + string(unloved_fname) + ": " + strerror(errno) + '\n')));
+    for (unsigned i = 0; i < v_loved.size(); i++)
+        if (v_loved[i] == false)
+            outfile << d_m.get_cmt(i) << '\n';
+    return EXIT_SUCCESS;
+}
+
+/* ---------------- get_loved --------------------------------
+ * Given a vector of the right length set the elements if the
+ * sequence is in the component.
+ */
+static void
+get_loved (const component &cmpnt,  vector<bool> &v_loved)
+{
+    for (edge e: cmpnt.get_edges()) {
+        v_loved[e.m1] = true;
+        v_loved[e.m2] = true;
+    }
+}
+
 /* ---------------- main  ------------------------------------
  */
 int
 main ( int argc, char *argv[])
 {
     const char *progname = argv[0],
-               *seq_fname = NULL,
-               *mat_in_fname = NULL;
-    seq_fname = argv[1];
-    mat_in_fname = argv[2];
+               *special_seq_fname = NULL,
+               *mat_in_fname      = NULL,
+               *seq_in_fname      = NULL,
+               *seq_out_fname     = NULL, /* Where we write selected sequences */
+               *unloved_fname = NULL; /* Where we  write unloved seqs */
+    int c;
+    int n_arg = 3;
+    while ((c = getopt (argc, argv, "s:u:")) != -1)
+        switch (c)
+            {
+            case 's': seq_out_fname = optarg;                     break;
+            case 'u': unloved_fname = optarg;                     break;
+            case '?': return (usage(progname, "unknown option"));
+            }
+    for (int index = optind; index < argc; index++)
+        cout<< "next arg "<< argv[index]<< '\n';
 
-    if (argc < 3)
+    if ((argc - optind) < n_arg)
         return (usage(progname, "Too few arguments"));
+
+    special_seq_fname     = argv[optind++];
+    mat_in_fname  = argv[optind++];
+    seq_in_fname = argv[optind++];
 
     vector<string> v_spec_seqs;
 
-    if (get_spec_seqs (seq_fname, v_spec_seqs) < 2) {
-        cerr<< "Too few sequences found in "<< seq_fname <<'\n';
+    if (get_spec_seqs (special_seq_fname, v_spec_seqs) < 2) {
+        cerr<< "Too few sequences found in "<< special_seq_fname <<'\n';
         return EXIT_FAILURE;
     }
     dist_mat d_m(mat_in_fname);
@@ -538,8 +620,17 @@ main ( int argc, char *argv[])
     if (get_special_seq_ndx(d_m.get_cmt_vec(), v_spec_seqs, v_spec_ndx) == EXIT_FAILURE)
         return EXIT_FAILURE;
     component cmpnt = get_edges (v_spec_ndx, d_m.get_dist());
-    describe_cmpnt (cmpnt, d_m);
+    cmpnt.describe (d_m);
     path path = dijkstra (cmpnt, d_m, v_spec_ndx);
     path.print (nullptr, d_m);
+    vector<bool> v_loved (d_m.get_n_mem(), false);
+    if (seq_out_fname || unloved_fname)
+        get_loved (cmpnt, v_loved);
+    if (seq_out_fname)
+        if (write_loved_seqs (seq_in_fname, seq_out_fname, d_m, v_loved) == EXIT_FAILURE)
+            return EXIT_FAILURE;
+    if (unloved_fname)
+        if (write_unloved_seqs (unloved_fname, d_m, v_loved) == EXIT_FAILURE)
+            return EXIT_FAILURE;
     return EXIT_SUCCESS;
 }
