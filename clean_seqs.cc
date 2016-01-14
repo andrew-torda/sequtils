@@ -292,8 +292,10 @@ read_seqs (const char *in_fname, t_queue<fseq> &tag_rmvr_out_q,
     ifstream infile (in_fname);
     unsigned nseq = 0;
 
-    if (!infile)
-        return (bust(__func__, string("opening ") + in_fname + ": " + strerror(errno)));
+    if (!infile) {
+        bust(__func__, string("opening ") + in_fname + ": " + strerror(errno));
+        return 0;
+    }
 
     t_queue<fseq> cleaner_in_q (CLN_QBUF);
     t_queue<fseq> tag_rmvr_in_q (CLN_QBUF - 1);
