@@ -26,7 +26,6 @@ static void breaker(){}
 
 /* ---------------- constants and structures ----------------- */
 static const unsigned CLN_QBUF = 101;
-static const char GAPCHAR = '-';
 static const char COMMENT_CHAR = '#';
 struct stats {
     string cmmt_short;
@@ -57,6 +56,7 @@ struct result {        /* Used by the regex matching */
     string comment;
     string matched;
     unsigned n;
+    int nothing; /* get rid of padding warning */
 };
 
 /* ---------------- usage ------------------------------------ */
@@ -64,7 +64,7 @@ static int
 usage ( const char *progname, const char *s)
 {
     static const char *u
-        = ": [-n -s small_seq -t big_seq -g] [-w warning_tags] seq_tags_fname in_file out_file\n";
+        = ": [-n -s small_seq -t big_seq -g -i min_len -j max_len] [-w warning_tags] seq_tags_fname in_file out_file\n";
     cerr << progname << s << '\n' << progname << u;
     return EXIT_FAILURE;
 }
@@ -79,9 +79,9 @@ keep_seq ( fseq &f, const struct criteria *criteria)
     const string::size_type len = f.get_seq().size();
     if (!criteria)
         return true;
-    if (len > criteria->max_len)
+    if (criteria->max_len && len > criteria->max_len)
         return false;
-    if (len < criteria->min_len)
+    if (criteria->min_len && len < criteria->min_len)
         return false;
     return true;
 }
@@ -112,7 +112,7 @@ regex_check (const vector<seq_tag> &v_seq_tag, vector<struct result> &v_res,
             result.seq_cmmt = f.get_cmmt().substr (0, 20);
             v_res.push_back(result);
             if (do_replace)
-                s.erase (sm.position(), sm.length());
+                s.erase (unsigned(sm.position()), unsigned (sm.length()));
         }
     }
     if (match) {
@@ -190,16 +190,13 @@ cleaner (t_queue<fseq> &cleaner_in_q, t_queue<fseq> &tag_rmvr_out_q,
          const bool keep_gap, const unsigned short verbosity)
 {
     t_queue<fseq> tag_rmvr_in_q (CLN_QBUF+2);
-    const boost::regex white("\\s");  /* Here is where we want */
-    const boost::regex gap("-");      /* to move to std library */
     string replace = "";              /* when we update gcc */
     unsigned n = 0;
     thread tag_rmvr_thr (tag_remover, ref(v_seq_tag), ref(v_warn_tag),
                          ref(tag_rmvr_in_q), ref(tag_rmvr_out_q), criteria);
     while (cleaner_in_q.alive()) {
         fseq f = cleaner_in_q.front_and_pop();
-        string s = f.get_seq();
-        f.replace_seq (clean_one_seq(s, keep_gap));
+        f.clean(keep_gap);
         tag_rmvr_in_q.push (f);
         n++;
     }
@@ -216,8 +213,7 @@ cleaner (t_queue<fseq> &cleaner_in_q, t_queue<fseq> &tag_rmvr_out_q,
  * the writer process.
  */
 static void
-read_get_stats (const char *in_fname, struct stats *stats,
-                const unsigned short verbosity, int *ret)
+read_get_stats (const char *in_fname, struct stats *stats, int *ret)
 {
     string errmsg = __func__;
     vector<string::size_type> v_lens;
@@ -268,13 +264,13 @@ read_get_stats (const char *in_fname, struct stats *stats,
     stats->ndx_long   = ndx_long;
 
     const string::size_type n = v_lens.size();
-    stats->mean = (float) nsum / n;
-    const string::size_type non2 = n / 2; /* deliberate integer division */
+    stats->mean = float (nsum) / float (n);
+    vector<string::size_type>::difference_type non2 = n / 2; /* deliberate integer division */
     nth_element(v_lens.begin(), v_lens.begin() + non2, v_lens.end());
-    stats->median = v_lens[non2];
+    stats->median = v_lens[unsigned(non2)];
 
 
-    float p1 = 1.0 / (n *(n-1));
+    float p1 = float (1.0) / (n *(n-1));
     unsigned long p2 = n * nsum_sq - (nsum * nsum);
     stats->std_dev = sqrt (p1 * p2);
 }
@@ -435,12 +431,12 @@ set_criteria_std_dev (struct criteria *criteria, const struct stats *stats,
 {
     if (small_seq_str) {
         float f = stof(small_seq_str);
-        criteria->min_len = stats->median - (unsigned) (f * stats->std_dev);
+        criteria->min_len = stats->median - unsigned (f * stats->std_dev);
         cout<< "Set minimum seq length to "<< criteria->min_len << '\n';
     }
     if (big_seq_str) {
         float f = stof(big_seq_str);
-        criteria->max_len = stats->median + (unsigned) (f * stats->std_dev);
+        criteria->max_len = stats->median + unsigned (f * stats->std_dev);
         cout<< "Set max seq length to "<< criteria->max_len << '\n';
     }
     return EXIT_SUCCESS;
@@ -511,7 +507,7 @@ main (int argc, char *argv[])
 
 
     int stat_ret;
-    thread stat_thrd (read_get_stats, in_fname, &stats, verbosity, &stat_ret);
+    thread stat_thrd (read_get_stats, in_fname, &stats, &stat_ret);
     /* The first pass over the sequences has started in the background. */
     /* While this is happening, get the sequence tags and build their */
     /* regular expressions. */
