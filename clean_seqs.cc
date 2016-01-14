@@ -17,6 +17,8 @@
 #include <unistd.h>  /* for getopt() */
 #include <boost/regex.hpp> /* when we update gcc, get rid of this */
 
+
+#include "bust.hh"
 #include "fseq.hh"
 #include "mgetline.hh"
 #include "t_queue.hh"
@@ -64,8 +66,9 @@ static int
 usage ( const char *progname, const char *s)
 {
     static const char *u
-        = ": [-n -s small_seq -t big_seq -g -i min_len -j max_len] [-w warning_tags] seq_tags_fname in_file out_file\n";
-    cerr << progname << s << '\n' << progname << u;
+        = " [-n -s small_seq -t big_seq -g -i min_len -j max_len] [-w warning_tags] seq_tags_fname in_file out_file\n";
+    bust (progname, s);
+    cout << "Usage: "<< progname << u;
     return EXIT_FAILURE;
 }
 
@@ -289,11 +292,8 @@ read_seqs (const char *in_fname, t_queue<fseq> &tag_rmvr_out_q,
     ifstream infile (in_fname);
     unsigned nseq = 0;
 
-    if (!infile) {
-        errmsg += ": opening " + string (in_fname) + ": " + strerror(errno) + '\n';
-        cerr << errmsg;
-        return EXIT_FAILURE;
-    }
+    if (!infile)
+        return (bust(__func__, string("opening ") + in_fname + ": " + strerror(errno)));
 
     t_queue<fseq> cleaner_in_q (CLN_QBUF);
     t_queue<fseq> tag_rmvr_in_q (CLN_QBUF - 1);
@@ -368,13 +368,18 @@ seq_writer (const char *seq_tags_fname, t_queue<fseq> &tag_rmvr_out_q,
             const short unsigned verbosity, const bool nothing_flag, int *ret)
 {
     string errmsg = __func__;
+    *ret = EXIT_SUCCESS;
     unsigned n_in = 0, n_out = 0;
     ofstream outfile (seq_tags_fname);
     if (! outfile) {
         errmsg += ": opening " + string (seq_tags_fname) + ": " + strerror(errno) + '\n';
         cerr << errmsg;
         *ret = EXIT_FAILURE;
+        while (tag_rmvr_out_q.alive())
+            tag_rmvr_out_q.front_and_pop();
+        return;
     }
+
     while (tag_rmvr_out_q.alive()) {
         fseq f = tag_rmvr_out_q.front_and_pop();
         n_in++;
@@ -387,7 +392,6 @@ seq_writer (const char *seq_tags_fname, t_queue<fseq> &tag_rmvr_out_q,
     if (verbosity > 0)
         cout << __func__<< ": received " << n_in << " sequences and wrote "
              << n_out << " of them\n";
-    *ret = EXIT_SUCCESS;
 }
 
 /* ---------------- set_criteria_cmd_ln ----------------------
@@ -397,10 +401,6 @@ static int
 set_criteria_cmd_ln (struct criteria *criteria, const char *small_seq_str, const char *big_seq_str)
 {
     bool e = false;
-    criteria->min_len = 0;
-    criteria->max_len = 0;
-    criteria->s_arg = 0;
-    criteria->t_arg = 0;
     if (small_seq_str) {
         try {
             criteria->min_len = stoul (small_seq_str, nullptr, 0);
@@ -463,7 +463,7 @@ main (int argc, char *argv[])
           nothing_flag = false,
           eflag = false;
     struct criteria *crit_ptr = NULL;
-    struct criteria criteria;
+    struct criteria criteria = {0, 0, 0, 0};
     while ((c = getopt(argc, argv, "gi:j:ns:t:vw:")) != -1) {
         switch (c) {
         case 'g': keep_gap = true;                                     break;
@@ -475,9 +475,9 @@ main (int argc, char *argv[])
         case 'v': verbosity++;                                         break;
         case 'w': warn_tags_fname = optarg;                            break;
         case ':':
-            cerr << argv[0] << "Missing opt argument\n"; eflag = true; break;
+            cerr << argv[0] << " Missing opt argument\n"; eflag = true; break;
         case '?':
-            cerr << argv[0] << "Unknown option\n";       eflag = true; break;
+            cerr << argv[0] << " Unknown option\n";       eflag = true; break;
         }
     }
     if (eflag)
@@ -539,12 +539,18 @@ main (int argc, char *argv[])
 
     writer_thrd.join();
     if (writer_ret != EXIT_SUCCESS)
-        return EXIT_SUCCESS;
+        return (bust (progname, "Stopping because of problem with seq_writer"));
 
     cout << fixed<< "There were " << nseq << " sequences. Median length: "<< stats.median
          << " Average length "<< setprecision (1) << stats.mean
-         << " +- "<< setprecision (1) << stats.std_dev << " deviation\n"
-         << "Shortest sequence no. " << stats.ndx_short << ", length "
+         << " +- "<< setprecision (1) << stats.std_dev << " deviation\n";
+    if (crit_ptr) {
+        if (crit_ptr->min_len)
+            cout << "Sequence minimum length to be kept: "<< crit_ptr->min_len<<'\n';
+        if (crit_ptr->max_len)
+            cout << "Sequence maximum length to be kept: "<< crit_ptr->max_len<<'\n';
+    }
+    cout << "Shortest sequence no. " << stats.ndx_short << ", length "
          << stats.len_short << " starts with\n"
          << stats.cmmt_short.substr (0,50) << '\n'
          << "Longest sequence no. "  << stats.ndx_long  << ", length "
