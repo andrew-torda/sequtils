@@ -1,11 +1,13 @@
-.TH clean_msa local 2015-10-22 local  "local doc"
+.TH reduce local 2015-10-22 local  "local doc"
 .SH NAME
-clean_msa \- clean and filter a multiple sequence alignment
+reduce \- clean and filter a multiple sequence alignment
 .SH SYNOPSIS
 .nf
-.B clean_msa \fB[\fP\fB-sv\fP\fB][\fB\-a \fI\sacred_file\fR ] in.msa in_distance_matrix.hat2 out.msa
+.B reduce \fB[\fP\fB-sv\fP\fB][\fB\-a \fI\sacred_file\fR ] in.msa in_distance_matrix.hat2 out.msa
 .SH DESCRIPTION
-soon.
+We have a huge multiple sequence alignment that is too big for building a good tree. This program will read the distance matrix from mafft, visit pairs of sequences that are most similar and remove one member of each pair. If there are sequences which are especially interesting, you can declare them to be sacred. If they appear within a pair, they will not be removed.
+.PP
+From each pair, we can also choose the strategy for removing members.
 .SH OPTIONS
 .TP 7
 \fB-a\fP \fIfilename\fP
@@ -23,6 +25,10 @@ From each pair, choose the second.
 From each pair, choose one pseudo-randomly.
 .BI\-e " seed"
 If using the random choice method for picking sequences to keep, set the random seed with this option. If you do not do so, there will be a default value so you will get reproducibility from run to run.
+.TP
+.B \-f
+When writing the reduced set of sequences, remove (filter out) any completely empty columns. Why ? If you have a big alignment, there are lots of gaps because just a few sequences had an insertion in a certain position. This means that in the reduced set, there are usually lots of completely empty positions. Perhaps this should be the default, rather than an option.
+
 .TP 7
 \fB-s\fP
 Sequences containing "seed" will be removed. Mafft uses these as constraints on the alignment. They usually come from structural alignments.
@@ -36,6 +42,16 @@ Mafft writes the distance matrix in the same order as its input sequences. It ma
 
 This is not fatal. It means we have to parse the names written by mafft at the start and use these as lookups.
 .SS Threads
-There are a few threads here. Input files are read concurrently. This is a good idea. The first time sequences are read, they are gobbled up and put in a queue where they are processed, gaps counted and put into a map object. This was a bad idea. It does not save any time.
+There are a few threads here. Input files are read concurrently. This is a good idea. The first time sequences are read, they are gobbled up and put in a queue where they are processed, gaps counted and put into a map object. This was fun, but may not save much time.
 .SS Storage
 Sequences are read up and indexed by their comment field in a map structure. This was not such a good idea. It might have been better to use a simple array and helper arrays to allow us to handle files with re-ordered sequences.
+.SH BUGS
+.PP
+To get items off the queue, we do a
+.nf
+  front()
+  pop()
+.fi
+They are combined into front_and_pop(), but there is some unnecessary copying.
+.PP
+
