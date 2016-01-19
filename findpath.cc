@@ -588,10 +588,10 @@ main ( int argc, char *argv[])
                *special_seq_fname = NULL,
                *mat_in_fname      = NULL,
                *seq_in_fname      = NULL,
-               *seq_out_fname     = NULL, /* Where we write selected sequences */
+               *seq_out_fname     = NULL, /* Where we write selected seqs */
                *unloved_fname = NULL; /* Where we  write unloved seqs */
     int c;
-    int n_arg = 3;
+    int n_arg = 2;
     while ((c = getopt (argc, argv, "s:u:")) != -1)
         switch (c)
             {
@@ -602,6 +602,9 @@ main ( int argc, char *argv[])
     for (int index = optind; index < argc; index++)
         cout<< "next arg "<< argv[index]<< '\n';
 
+    if (seq_out_fname)
+        n_arg++;
+    
     if ((argc - optind) < n_arg)
         return (usage(progname, "Too few arguments"));
 
