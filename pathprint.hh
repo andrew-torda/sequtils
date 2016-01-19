@@ -2,8 +2,8 @@
  * Can only be included after <string> and <vector>
  */
 
-#ifndef __PATHPRINT_HH
-#define __PATHPRINT_HH
+#ifndef PATHPRINT_HH
+#define PATHPRINT_HH
 /* ---------------- path  ------------------------------------
  * Class for storing a path.
  * We want to be able to do nice printing. What we have to
@@ -17,10 +17,16 @@
  */
 
 class dist_mat;
+#ifdef __clang__
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wpadded"
+#endif /* clang */
+
 class path {
-private:
+private:    
     struct node {
         unsigned label;      /* Index to node number in original set of seqs */
+        unsigned pred_label; /* label of predecessor node in path */
         float src_dist;      /* Distance to source */
         float dst_dist;      /* Distance to dest (last) node */
         float p_dist;        /* Distance to predecessor */
@@ -37,4 +43,8 @@ public:
     unsigned n_mbr;
 };
 
-#endif /* __PATHPRINT_HH */
+#ifdef __clang__
+#    pragma GCC diagnostic pop
+#endif /* clang */
+
+#endif /* PATHPRINT_HH */
