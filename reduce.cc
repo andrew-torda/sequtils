@@ -184,7 +184,8 @@ mark_sacred (map<string, fseq_prop> &f_map, vector<string> &v_sacred)
  * function pointer.
  */
 typedef unsigned char decider_f (const fseq_prop&, const fseq_prop&);
-
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 static unsigned char
 always_first (const fseq_prop &f1, const fseq_prop &f2)
 {
@@ -207,7 +208,7 @@ decide_random(const fseq_prop &f1, const fseq_prop &f2)
         return S_1;
     return S_2;
 }
-
+#pragma GCC diagnostic pop
 static unsigned char
 decide_longer(const fseq_prop &f1, const fseq_prop &f2)
 {
