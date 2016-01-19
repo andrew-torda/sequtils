@@ -66,7 +66,7 @@ read_info (ifstream &infile, const char *dist_fname){
     mgetline (infile, t); /* there is a float we do not use */
     if (nseq > numeric_limits<unsigned>::max())
         prog_bug (__FILE__, __LINE__, "too many sequences");
-    return (unsigned)nseq;
+    return unsigned (nseq);
 }
 
 struct int_comment {
@@ -122,6 +122,46 @@ read_mafft_seq (ifstream &infile, vector<string> &v_cmt,
     return EXIT_SUCCESS;
 }
 
+#ifdef use_get_next_float
+#include <cstdlib>
+/* ---------------- refill_fbuf  -----------------------------
+ * read a line and put all the values into a float vector.
+ */
+static void
+refill_fbuf (ifstream &infile, vector<float> &fbuf)
+{
+    fbuf.clear();
+    string s;
+    const char *nptr;
+    char *endptr;
+    mgetline (infile, s);
+    endptr = (char *) s.c_str();
+    do {  // Stop fighting and change it to while (1) loop
+        nptr = endptr;
+        float f = strtof(nptr, &endptr);
+        if (endptr != nptr)
+            fbuf.push_back(f);
+    } while (endptr != nptr);
+    
+    return;
+//  float strtof(const char *restrict nptr, char **restrict endptr);
+}
+
+
+/* ---------------- get_next_float  --------------------------
+ */
+static float
+get_next_float (ifstream &infile)
+{
+    static vector<float> fbuf;  // Move these into the caller and we can avoid statics
+    static unsigned used = 0;
+    if (used == fbuf.size()) {
+        refill_fbuf (infile, fbuf);
+        used = 0;
+    }
+    return fbuf[used++];
+}
+#endif /* use_get_next_float */
 
 /* ---------------- read_mafft_dist --------------------------
  * This seems to take a lot of time. I used to have
@@ -139,7 +179,11 @@ read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
     for (unsigned i = 0; i < nseq ; i++) {
         for (unsigned j = i+1; j < nseq; j++) {
             struct dist_entry d_e = { -99, i, j};
+#   ifdef use_get_next_float
+            d_e.dist = get_next_float(infile);
+#   else            
             infile >> d_e.dist;
+#   endif   /* use_get_next_float */
             v_dist.push_back(d_e);
         }
     }   
