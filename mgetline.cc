@@ -45,7 +45,7 @@ mc_getline ( std::ifstream& is, std::string& str, const char cmmt)
     if (str.size() > std::numeric_limits<unsigned>::max())
         prog_bug (__FILE__, __LINE__, "Line too long");
 
-    return (unsigned)str.size();
+    return (unsigned(str.size()));
 }
 
 /* ---------------- mgetline ---------------------------------
