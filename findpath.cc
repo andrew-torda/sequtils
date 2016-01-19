@@ -531,24 +531,27 @@ write_loved_seqs (const char *seq_in_fname, const char *seq_out_fname,
                   const dist_mat &d_m, const vector<bool> &v_loved)
 {
     seq_index s_i;
+    const string e_copying = "error copying sequences:";
     cout << __func__<< " Writing sequences from "<< seq_in_fname
          << " to "<< seq_out_fname << '\n';
     if (s_i(seq_in_fname) == EXIT_FAILURE)
         return EXIT_FAILURE;
 
     ofstream outfile (seq_out_fname);
+    
     if (!outfile)
         return (bust(__func__, ("Open fail" + string(seq_out_fname) + ": " + strerror(errno) + '\n')));
-
-    for (unsigned i = 0; i < v_loved.size(); i++) {
-        if (v_loved[i]) {
-            string s = d_m.get_cmt(i);
-            fseq fs = s_i.get_seq_by_cmmt(s);
-            fs.clean(false);
-            fs.write (outfile, 60);
+    try {
+        for (unsigned i = 0; i < v_loved.size(); i++) {
+            if (v_loved[i]) {
+                string s = d_m.get_cmt(i);
+                fseq fs = s_i.get_seq_by_cmmt(s);
+                fs.clean(false);
+                fs.write (outfile, 60);
+            }
         }
-    }
-    
+    } catch (runtime_error &e) {
+        return (bust(__func__, (e_copying + e.what())));}
     return EXIT_SUCCESS;
 }
 

@@ -46,15 +46,18 @@ fseq
 seq_index::get_seq_by_cmmt (const string &s)
 {
     seq_map::const_iterator it = s_map.find (s);
+    const string seek_fail = "Fail seeking on file ";
+    const string seq_not_found = "Sequence not found in " + fname + ":\n";
+    const string fail_reading  = "Fail reading sequence from: ";
     if (it == s_map.end())
-        cerr<< __func__<< " sequence not found:\n" << s<< '\n';
+        throw runtime_error (seq_not_found + s + '\n');
     infile.clear();
     infile.seekg (it->second);
-    if (infile.bad() || infile.fail()) {
-         string t = "Fail seeking on "; throw runtime_error (t + fname);}
+    if (infile.bad() || infile.fail())
+        throw runtime_error (seek_fail + fname);
     fseq fs;
-    if (!fs.fill (infile, 0)) {
-        string t = "Fail reading seq from "; throw runtime_error (t + fname);}
+    if (!fs.fill (infile, 0))
+        throw runtime_error (fail_reading + fname);
     return fs;
 
 }
