@@ -1,4 +1,6 @@
 .TH reduce local 2015-10-22 local  "local doc"
+.hy 0 
+.if n .ad l 
 .SH NAME
 reduce \- clean and filter a multiple sequence alignment
 .SH SYNOPSIS
@@ -11,7 +13,7 @@ From each pair, we can also choose the strategy for removing members.
 .SH OPTIONS
 .TP 7
 \fB-a\fP \fIfilename\fP
-\fIfilename\P is a list of sequences which are sacred and should not be deleted.
+\fIfilename\fP is a list of sequences which are sacred and should not be deleted.
 
 .TP 7
 .BI \-c " method"
@@ -23,7 +25,8 @@ From each pair, choose the first.
 From each pair, choose the second.
 .IP random 14
 From each pair, choose one pseudo-randomly.
-.BI\-e " seed"
+.TP 7
+.BI \-e " seed"
 If using the random choice method for picking sequences to keep, set the random seed with this option. If you do not do so, there will be a default value so you will get reproducibility from run to run.
 .TP
 .B \-f
