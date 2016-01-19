@@ -183,40 +183,39 @@ mark_sacred (map<string, fseq_prop> &f_map, vector<string> &v_sacred)
  * pair to delete. We use one of these, as pointed to by a
  * function pointer.
  */
-typedef unsigned char decider_f (const fseq_prop&, const fseq_prop&);
+typedef unsigned char decider_f (const fseq_prop&, const fseq_prop&, default_random_engine&);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 static unsigned char
-always_first (const fseq_prop &f1, const fseq_prop &f2)
+always_first (const fseq_prop &f1, const fseq_prop &f2, default_random_engine &r_engine)
 {
     return S_1;
 }
 
 static unsigned char
-always_second (const fseq_prop &f1, const fseq_prop &f2)
+always_second (const fseq_prop &f1, const fseq_prop &f2, default_random_engine &r_engine)
 {
     return S_2;
 }
 
 static unsigned char
-decide_random(const fseq_prop &f1, const fseq_prop &f2)
+decide_random(const fseq_prop &f1, const fseq_prop &f2, default_random_engine &r_engine)
 {
-    static default_random_engine r_engine{};
     uniform_int_distribution<int> d{0,1};
     int r = d(r_engine);
     if (r == 1)
         return S_1;
     return S_2;
 }
-#pragma GCC diagnostic pop
+
 static unsigned char
-decide_longer(const fseq_prop &f1, const fseq_prop &f2)
+decide_longer(const fseq_prop &f1, const fseq_prop &f2, default_random_engine &r_engine)
 {
     if (f1.ngap < f2.ngap)
         return S_2;
     return S_1;
 }
-
+#pragma GCC diagnostic pop
 static decider_f *
 set_up_choice (const string &s)
 {
@@ -232,7 +231,7 @@ set_up_choice (const string &s)
         cerr << __func__ <<": random choice type \"" << s << "\" not known. Stopping. Try one of..\n   ";
         map<string, decider_f *>::const_iterator it = choice_map.begin();
         for (; it != missing; it++)
-            cout << it->first << " ";
+            cout << it->first << " " << '\n';
         cout << endl;
         return nullptr;
     }
@@ -245,15 +244,17 @@ set_up_choice (const string &s)
  * We will have to expand this to consider different options.
  */
 static unsigned char
-choose_seq (const fseq_prop &f1, const fseq_prop &f2, decider_f *choice)
+choose_seq (const fseq_prop &f1, const fseq_prop &f2, decider_f *choice, default_random_engine &r_engine)
 {
+    static unsigned n = 0;
+    if (n++ > 20) exit(0);
     if (f1.is_sacred() && f2.is_sacred())
         return NOBODY;
     if (f1.is_sacred())
         return S_2;
     else if(f2.is_sacred())
         return S_1;
-    return (choice (f1, f2));
+    return (choice (f1, f2, r_engine));
 }
 
 /* ---------------- remove_seq -------------------------------
@@ -262,7 +263,7 @@ choose_seq (const fseq_prop &f1, const fseq_prop &f2, decider_f *choice)
 static void
 remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
             vector<dist_entry> &v_dist, const unsigned long to_keep,
-            decider_f *choice)
+            decider_f *choice, default_random_engine &r_engine)
 {
     vector<dist_entry>::const_iterator it = v_dist.begin();
     for ( ; f_map.size() > to_keep  && (it != v_dist.end()); it++) {
@@ -273,7 +274,7 @@ remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
         const map<string, fseq_prop>::const_iterator f2      = f_map.find(s2);
         if ((f1 == missing) || (f2 == missing))
             continue;
-        switch (choose_seq(f1->second, f2->second, choice)) {
+        switch (choose_seq(f1->second, f2->second, choice, r_engine)) {
         case NOBODY:
             continue;        /* break; otherwise compiler complains */
         case S_1:
@@ -522,7 +523,7 @@ main (int argc, char *argv[])
             return EXIT_FAILURE;
     }
 
-    remove_seq (s_props.f_map, v_cmt, v_dist, n_to_keep, choice);
+    remove_seq (s_props.f_map, v_cmt, v_dist, n_to_keep, choice, r_engine);
 
     vector<bool> v_used;
     if (filter_col) {
