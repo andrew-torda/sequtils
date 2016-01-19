@@ -19,7 +19,7 @@
 template <typename T>
 class t_queue {
 public:
-    typedef unsigned char qstate_t;
+    typedef char qstate_t;
 private:
     std::queue<T> p_q;
     std::mutex q_mtx;

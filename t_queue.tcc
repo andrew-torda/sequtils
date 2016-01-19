@@ -181,7 +181,7 @@ t_queue<T>::alive ()
         q_state |= ALIVE_WAITING;
         need_refill.notify_one();
     }
-    q_state &= (qstate_t) ~ALIVE_WAITING;
+    q_state &= ~ALIVE_WAITING;
     
     /* We have waited, but it could be that the queue simply closed */
     if (atm_size == 0) {
