@@ -1,5 +1,5 @@
 /* 10 oct 2015 */
-static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.7 2015/12/08 09:21:30 torda Exp torda $";
+static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.8 2015/12/17 12:19:49 torda Exp torda $";
 
 #include <csignal>
 #include <fstream>
@@ -7,6 +7,7 @@ static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.7 2015/12/0
 #include <sstream>
 #include <string>
 #include <stdexcept>
+#include <boost/regex.hpp> /* when we update gcc, get rid of this */
 
 #include "fseq.hh"
 #include "mgetline.hh"
@@ -24,7 +25,6 @@ using namespace std;
 
 /* ---------------- structures and constants ----------------- */
 static const char COMMENT = '>';
-static const char GAP = '-';
 
 /* ---------------- fseq::fill  ------------------------------
  * The real initialisor/constructor for an fseq.
@@ -53,7 +53,7 @@ fseq::fill (ifstream &infile, const size_t len_exp) {
         }
     }
     
-    if (! seq.length() > 0) {
+    if (! (seq.length() > 0)) {
         cerr << "no sequence found for " << cmmt << "\n";
         return false;
     }
@@ -80,12 +80,27 @@ fseq::fseq(ifstream &infile, const size_t len_exp) {
     fill (infile, len_exp);
 }
 
+/* ---------------- fseq::clean ------------------------------
+ * Remove white spaces from a sequence.
+ * If keep_gap is not set, remove gap characters.
+ */
+void
+fseq::clean (bool keep_gap)
+{
+    const boost::regex white("\\s");  /* Here is where we want */
+    const boost::regex gap("-");      /* to move to std library */
+    string replace = "";              /* when we update gcc */
+    seq = boost::regex_replace (seq, white, replace);
+    if (! keep_gap)
+        seq = boost::regex_replace (seq, gap, replace);
+}
+
 /* ---------------- fseq::write ------------------------------
  * Given an open file, write the sequence, nicely formatted
  * to the file.
  */
 void
-fseq::write (ofstream &ofile, const unsigned short line_len)
+fseq::write (ostream &ofile, const unsigned short line_len)
 {
     string::size_type done = 0, to_go;
     ofile << this->get_cmmt() << '\n'; /* Write comment verbatim */
