@@ -376,10 +376,9 @@ find_used_columns (const char *in_fname,
     unsigned nf_in = 0;
     ifstream in_file (in_fname);
     fseq fs;
-    if (! in_file) {
-        cerr << __func__ << "open fail on " << in_fname << '\n';
-        return EXIT_FAILURE;
-    }
+    if (! in_file)
+        return (bust(__func__, string("open fail reading from ") + in_fname));
+
     const map<string, fseq_prop>::const_iterator missing = f_map.end();
     while (fs.fill (in_file, 0)) {
         nf_in++;
