@@ -246,8 +246,6 @@ set_up_choice (const string &s)
 static unsigned char
 choose_seq (const fseq_prop &f1, const fseq_prop &f2, decider_f *choice, default_random_engine &r_engine)
 {
-    static unsigned n = 0;
-    if (n++ > 20) exit(0);
     if (f1.is_sacred() && f2.is_sacred())
         return NOBODY;
     if (f1.is_sacred())
@@ -331,6 +329,7 @@ write_kept_seq (const char *in_fname, const char *out_fname,
         cerr << __func__ << "open fail on " << in_fname << '\n';
         return EXIT_FAILURE;
     }
+
     ofstream out_file (out_fname);
     if ( ! out_file) {
         cerr << __func__ << ": opening " << out_fname  << ": " << strerror(errno) << '\n';
