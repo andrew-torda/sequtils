@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 
+#include "bust.hh"
 #include "distmat_rd.hh"
 #include "mgetline.hh"
 #include "prog_bug.hh"
@@ -101,21 +102,16 @@ static int
 read_mafft_seq (ifstream &infile, vector<string> &v_cmt,
                 const char *dist_fname, const unsigned nseq)
 {
-    stringstream errmsg (string (__func__));
-    errmsg << ": reading from " << string(dist_fname) << string ("\n");
+    const string err_line = "Error reading line from ";
     string t;
     unsigned n = 0;
     v_cmt.reserve (nseq);
     for (unsigned i = 1; i <= nseq; i++) {  /* starting from 1 */
-        if (!mgetline (infile, t)) {         /* allows the check below */
-            std::cerr << errmsg << "error reading line\n";
-            return EXIT_FAILURE;
-        }
+        if (!mgetline (infile, t))          /* allows the check below */
+            return (bust(__func__, err_line + dist_fname + '\n'));
         struct int_comment i_c = split_cmmt (t);
-        if (i_c.i != ++n) {
-            std::cerr << errmsg << "Did not get expected integer " << n<< "\n";
-            return EXIT_FAILURE;
-        }
+        if (i_c.i != ++n)
+            return (bust(__func__, "Did not get expected integer " + to_string (n) + '\n'));
         v_cmt.push_back (string (">") + i_c.cmmt);
     }
     v_cmt.shrink_to_fit();
@@ -172,21 +168,24 @@ static int
 read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
                 const char *dist_fname, const unsigned nseq)
 {
-    stringstream errmsg (string(__func__));
-    errmsg << ": reading from " << string(dist_fname) << "\n";
+    const string read_err = "Reading error, parsing floats in ";
     size_t ntmp = nseq * (nseq - 1) / 2;
     v_dist.reserve (ntmp);
-    for (unsigned i = 0; i < nseq ; i++) {
-        for (unsigned j = i+1; j < nseq; j++) {
-            struct dist_entry d_e = { -99, i, j};
-#   ifdef use_get_next_float
-            d_e.dist = get_next_float(infile);
-#   else            
-            infile >> d_e.dist;
-#   endif   /* use_get_next_float */
+    try {
+        for (unsigned i = 0; i < nseq ; i++) {
+            for (unsigned j = i+1; j < nseq; j++) {
+                struct dist_entry d_e = { -99, i, j};
+#                   ifdef use_get_next_float
+                        d_e.dist = get_next_float(infile);
+#                   else            
+                        infile >> d_e.dist;
+#                   endif   /* use_get_next_float */
             v_dist.push_back(d_e);
+            }
         }
-    }   
+    } catch (ios_base::failure &e) {
+        return (bust(__func__, read_err + dist_fname + '\n' + e.what() + '\n'));
+    }
     v_dist.shrink_to_fit();
     return EXIT_SUCCESS;
 }
@@ -196,19 +195,15 @@ read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
 int
 read_distmat (const char *dist_fname, vector<dist_entry> &v_dist, vector<string> &v_cmt)
 {
-    string errmsg = __func__;
-    errmsg += ": reading from " + string (dist_fname) + string (", ");
+    const string e_info = "Failed reading info lines from ";
     ifstream infile (dist_fname);
-    if (!infile) {
-        errmsg += ": opening " + string (dist_fname)
-            + ": " + strerror(errno) + "\n";
-        throw runtime_error (errmsg);
-    }
+    if (!infile)
+        return (bust (__func__, string ("Failed opening ") + dist_fname + ": " + strerror(errno) + '\n'));
+
     unsigned nseq;
-    if ((nseq = read_info (infile, dist_fname)) == EXIT_FAILURE) {
-        errmsg += "failed reading info";
-        throw runtime_error (errmsg);
-    }
+    if ((nseq = read_info (infile, dist_fname)) == EXIT_FAILURE)
+        return (bust (__func__, e_info + dist_fname + '\n'));
+
     if (read_mafft_seq (infile, v_cmt, dist_fname, nseq) == EXIT_FAILURE)
         return EXIT_FAILURE;
 

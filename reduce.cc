@@ -25,6 +25,7 @@
 #include <map>
 #include <vector>
 
+#include "bust.hh"
 #include "distmat_rd.hh"
 #include "fseq.hh"
 #include "fseq_prop.hh"
@@ -318,6 +319,8 @@ write_kept_seq (const char *in_fname, const char *out_fname,
                 map<string, fseq_prop> &f_map, const vector<bool> &v_used)
 {
     ifstream in_file (in_fname);
+    const string o_fail_r = "open fail (reading) on ";
+    const string o_fail_w = "open fail for writing on ";
     bool filter_col;
     if (v_used.size() != 0)
         filter_col = true;
@@ -325,16 +328,12 @@ write_kept_seq (const char *in_fname, const char *out_fname,
         filter_col = false;
 
     fseq fs;
-    if (! in_file) {
-        cerr << __func__ << "open fail on " << in_fname << '\n';
-        return EXIT_FAILURE;
-    }
+    if (! in_file)
+        return(bust(__func__, o_fail_r + in_fname));
 
     ofstream out_file (out_fname);
-    if ( ! out_file) {
-        cerr << __func__ << ": opening " << out_fname  << ": " << strerror(errno) << '\n';
-        return EXIT_FAILURE;
-    }
+    if ( ! out_file)
+        return (bust(__func__, o_fail_w + out_fname + ": " + strerror(errno)));
 
     while (fs.fill (in_file, 0)) {
         const map<string, fseq_prop>::const_iterator missing = f_map.end();
