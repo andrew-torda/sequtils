@@ -622,6 +622,8 @@ main ( int argc, char *argv[])
         return EXIT_FAILURE;
     }
     dist_mat d_m(mat_in_fname);
+    if (d_m.fail())
+        return EXIT_FAILURE;
     vector<unsigned> v_spec_ndx;
     if (get_special_seq_ndx(d_m.get_cmt_vec(), v_spec_seqs, v_spec_ndx) == EXIT_FAILURE)
         return EXIT_FAILURE;
