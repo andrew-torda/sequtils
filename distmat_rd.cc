@@ -226,10 +226,12 @@ read_distmat (const char *dist_fname, vector<dist_entry> &v_dist, vector<string>
  */
 dist_mat::dist_mat (const char *dist_fname)
 {
-    string errmsg = __func__;
-    errmsg += ": reading from " + string (dist_fname) + string (", ");
-    if (read_distmat (dist_fname, v_dist, v_cmt) == EXIT_FAILURE)
-        throw runtime_error (errmsg);
+    if (read_distmat (dist_fname, v_dist, v_cmt) == EXIT_FAILURE) {
+        fail_bit = true;
+        cerr << string (__func__) + ": reading from " + dist_fname + '\n';
+    } else {
+        fail_bit = false;
+    }
 }
 
 /* ---------------- get_dist    ------------------------------
