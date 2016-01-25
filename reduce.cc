@@ -492,30 +492,27 @@ main (int argc, char *argv[])
         read_distmat (dist_fname, v_dist, v_cmt) ;
     } catch (runtime_error &e) {
         gsl_thr.join(); sac_thr.join();
-        cerr << "Error reading distance matrix: "<< e.what() << '\n';
-        return EXIT_FAILURE;
+        return (bust(progname, string ("error reading distance matrix") + e.what()));
     }
-
     gsl_thr.join();
     if (gsl_ret != EXIT_SUCCESS) {
-        cerr << __func__ << " error in get_seq_list\n";
-        return EXIT_FAILURE;
+        sac_thr.join();
+        return (bust(progname, "error in get_seq_list"));
     }
 
     if (check_lists (s_props.f_map, v_cmt) == EXIT_FAILURE) {
-        cerr << __func__ << ": distmat file was \""<< dist_fname << "\", original sequences from \""<< in_fname<< '\n';
+        const string err_d_file = "distance matrix file was: ";
+        const string err_o_seqs = ", original sequences from ";  /* xxx finish this xxxxx */
+        cerr << __func__ << ": distmat file: \""<< dist_fname << "\", original sequences from \""<< in_fname<< '\n';
         sac_thr.join();
         return EXIT_FAILURE;
     }
     if (seedflag)
         remove_seeds (s_props.f_map, v_cmt);
-
     if (sacred_fname) {
         sac_thr.join();
-        if (sacred_ret != EXIT_SUCCESS) {
-            cerr << __func__ << ": err reading sacred file from "<< sacred_fname <<". Stopping\n";
-            return EXIT_FAILURE;
-        }
+        if (sacred_ret != EXIT_SUCCESS)
+            return (bust(progname, string ("error reading sacred file from") + sacred_fname));
         if (mark_sacred (s_props.f_map, v_sacred) != EXIT_SUCCESS)
             return EXIT_FAILURE;
     }
