@@ -5,3 +5,4 @@
 
 int bust (const char *func, const char *e_msg);
 int bust (const char *func, const std::string &e_msg);
+void bust_void (const char *func, const std::string &e_msg);
