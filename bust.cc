@@ -14,11 +14,12 @@
  */
 
 void
-bust_void (const char *func, const char *t, ...)
+bust_void (const char *func, ...)
 {
     std::string errmsg = std::string (func) + ": ";
     va_list tl;
-    va_start (tl, t);
+    va_start (tl, func);
+    const char *t = va_arg (tl, const char *);
     while (t != 0) {
         errmsg += t; errmsg += ' ';
         t = va_arg (tl, const char *);
@@ -29,11 +30,15 @@ bust_void (const char *func, const char *t, ...)
 }
 
 int
-bust (const char *func, const char *t, ...)
+bust (const char *func, ...)
 {
-    va_list tl;
-    va_start (tl, t);
-    bust_void (func, t, tl);
-    va_end (tl);
+    std::string errmsg = std::string (func) + ": ";
+    va_list sl;
+    va_start (sl, func);
+    const char *s = va_arg (sl, const char *);
+    for ( ; s; s = va_arg (sl, const char *))
+        { errmsg += s; errmsg += ' '; }
+    
+    va_end (sl);
     return EXIT_FAILURE;
 }

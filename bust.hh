@@ -6,9 +6,7 @@
 #ifndef BUST_HH
 #define BUST_HH
 
-
-void bust_void (const char *func, const std::string &e_msg);
-int bust (const char *func, const char *s...);
-void bust_void (const char *func, const char *s, ...);
+int bust (const char *func, ...);
+void bust_void (const char *func, ...);
 
 #endif /* BUST_HH */
