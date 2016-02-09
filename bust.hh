@@ -1,6 +1,5 @@
 /*
  * 14 Jan 2016
- * Include after <string>
  */
 
 #ifndef BUST_HH
