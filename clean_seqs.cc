@@ -259,6 +259,10 @@ read_get_stats (const char *in_fname, struct stats *stats, int *ret)
         v_lens.push_back (n);
     }
     infile.close();
+    if (nseq < 1) {
+        *ret = EXIT_FAILURE;
+        return (bust_void (__func__, string(": reading from ") + in_fname + " got no sequences\n"));
+    }
     stats->cmmt_short = cmmt_short;
     stats->cmmt_long  = cmmt_long;
     stats->len_short  = nshort;
@@ -498,8 +502,8 @@ main (int argc, char *argv[])
         crit_ptr = & criteria; /* Use this later to say if criteria have been set */
     }
     cout << progname << " with seq tags read from " << seq_tags_fname
-         << " input sequences from "<< in_fname << ". Writing output sequences to "
-         << out_fname << '\n';
+         << "\nInput sequences from "<< in_fname << ".\nWriting output sequences to "
+         << out_fname << "\n\n";
     if (warn_tags_fname)
         cout << "Unhappy strings for warnings will be read from " << warn_tags_fname << '\n';
     if (keep_gap )
@@ -536,8 +540,10 @@ main (int argc, char *argv[])
                         verbosity, nothing_flag, &writer_ret);
 
     if ((nseq = read_seqs (in_fname, tag_rmvr_out_q, v_seq_tag,
-                           v_warn_tag, crit_ptr, keep_gap, verbosity)) == 0)
-        return EXIT_FAILURE;
+                           v_warn_tag, crit_ptr, keep_gap, verbosity)) == 0) {
+        writer_thrd.join();
+        return (bust(__func__, string(": no sequences in ") +  in_fname + '\n'));
+    }
 
     writer_thrd.join();
     if (writer_ret != EXIT_SUCCESS)
