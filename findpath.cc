@@ -96,7 +96,7 @@ get_special_seq_ndx (const vector<string> &v_cmt_vec,
                  << t << "\" in the dist matrix file\n";
     }
     if (v_spec_ndx.size() != v_spec_seqs.size())
-        return (bust (__func__, "v_spec_ndx and v_spec_seqs, different sizes"));
+        return (bust (__func__, "v_spec_ndx and v_spec_seqs, different sizes", 0));
     v_spec_ndx.shrink_to_fit();
     return EXIT_SUCCESS;
 }
@@ -531,7 +531,7 @@ write_loved_seqs (const char *seq_in_fname, const char *seq_out_fname,
                   const dist_mat &d_m, const vector<bool> &v_loved)
 {
     seq_index s_i;
-    const string e_copying = "error copying sequences:";
+    const char *e_copying = "error copying sequences:";
     cout << __func__<< " Writing sequences from "<< seq_in_fname
          << " to "<< seq_out_fname << '\n';
     if (s_i(seq_in_fname) == EXIT_FAILURE)
@@ -540,7 +540,7 @@ write_loved_seqs (const char *seq_in_fname, const char *seq_out_fname,
     ofstream outfile (seq_out_fname);
     
     if (!outfile)
-        return (bust(__func__, ("Open fail" + string(seq_out_fname) + ": " + strerror(errno) + '\n')));
+        return (bust(__func__, "Open fail", seq_out_fname,  ": ", strerror(errno), 0));
     try {
         for (unsigned i = 0; i < v_loved.size(); i++) {
             if (v_loved[i]) {
@@ -551,7 +551,7 @@ write_loved_seqs (const char *seq_in_fname, const char *seq_out_fname,
             }
         }
     } catch (runtime_error &e) {
-        return (bust(__func__, (e_copying + e.what())));}
+        return (bust(__func__, e_copying, e.what(), 0));}
     return EXIT_SUCCESS;
 }
 
@@ -562,7 +562,7 @@ write_unloved_seqs (const char *unloved_fname, const dist_mat& d_m, const vector
 {
     ofstream outfile (unloved_fname);
     if (!outfile)
-        return (bust(__func__, ( "Open fail on " + string(unloved_fname) + ": " + strerror(errno) + '\n')));
+        return (bust(__func__, "Open fail on ", unloved_fname, ": ", strerror(errno), 0));
     for (unsigned i = 0; i < v_loved.size(); i++)
         if (v_loved[i] == false)
             outfile << d_m.get_cmt(i) << '\n';

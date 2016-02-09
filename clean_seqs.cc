@@ -67,9 +67,8 @@ usage ( const char *progname, const char *s)
 {
     static const char *u
         = " [-n -s small_seq -t big_seq -g -i min_len -j max_len] [-w warning_tags] seq_tags_fname in_file out_file\n";
-    bust (progname, s);
-    cout << "Usage: "<< progname << u;
-    return EXIT_FAILURE;
+    bust_void (progname, s, 0);
+    return (bust ("Usage", progname, u, 0));
 }
 
 /* ---------------- keep_seq  --------------------------------
@@ -236,9 +235,8 @@ read_get_stats (const char *in_fname, struct stats *stats, int *ret)
     ifstream infile (in_fname);
 
     if (!infile) {
-        errmsg += ": opening " + string (in_fname) + ": " + strerror(errno) + '\n';
-        cerr << errmsg;
         *ret = EXIT_FAILURE;
+        return (bust_void (__func__, "opening", in_fname, ": ", strerror(errno), 0));
     }
     ndx_short = ndx_long = 0;  /* stops compiler warnings */
     for (fseq fs; fs.fill(infile, 0); nseq++) {
@@ -261,7 +259,7 @@ read_get_stats (const char *in_fname, struct stats *stats, int *ret)
     infile.close();
     if (nseq < 1) {
         *ret = EXIT_FAILURE;
-        return (bust_void (__func__, string(": reading from ") + in_fname + " got no sequences\n"));
+        return (bust_void (__func__, "reading from", in_fname, "got no sequences\n", 0));
     }
     stats->cmmt_short = cmmt_short;
     stats->cmmt_long  = cmmt_long;
@@ -297,7 +295,7 @@ read_seqs (const char *in_fname, t_queue<fseq> &tag_rmvr_out_q,
     unsigned nseq = 0;
 
     if (!infile) {
-        bust(__func__, string("opening ") + in_fname + ": " + strerror(errno));
+        bust_void (__func__, "opening ", in_fname, ": ", strerror(errno), 0);
         return 0;
     }
 
@@ -542,12 +540,12 @@ main (int argc, char *argv[])
     if ((nseq = read_seqs (in_fname, tag_rmvr_out_q, v_seq_tag,
                            v_warn_tag, crit_ptr, keep_gap, verbosity)) == 0) {
         writer_thrd.join();
-        return (bust(__func__, string(": no sequences in ") +  in_fname + '\n'));
+        return (bust(__func__, "no sequences in ", in_fname, 0));
     }
 
     writer_thrd.join();
     if (writer_ret != EXIT_SUCCESS)
-        return (bust (progname, "Stopping because of problem with seq_writer"));
+        return (bust (progname, "Stopping because of problem with seq_writer", 0));
 
     cout << fixed<< "There were " << nseq << " sequences. Median length: "<< stats.median
          << " Average length "<< setprecision (1) << stats.mean

@@ -102,16 +102,16 @@ static int
 read_mafft_seq (ifstream &infile, vector<string> &v_cmt,
                 const char *dist_fname, const unsigned nseq)
 {
-    const string err_line = "Error reading line from ";
+    static const char *err_line = "Error reading line from ";
     string t;
     unsigned n = 0;
     v_cmt.reserve (nseq);
     for (unsigned i = 1; i <= nseq; i++) {  /* starting from 1 */
         if (!mgetline (infile, t))          /* allows the check below */
-            return (bust(__func__, err_line + dist_fname + '\n'));
+            return (bust(__func__, err_line, dist_fname, 0));
         struct int_comment i_c = split_cmmt (t);
         if (i_c.i != ++n)
-            return (bust(__func__, "Did not get expected integer " + to_string (n) + '\n'));
+            return (bust(__func__, "Did not get expected integer ", to_string(n).c_str(), 0));
         v_cmt.push_back (string (">") + i_c.cmmt);
     }
     v_cmt.shrink_to_fit();
@@ -168,7 +168,7 @@ static int
 read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
                 const char *dist_fname, const unsigned nseq)
 {
-    const string read_err = "Reading error, parsing floats in ";
+    const char *read_err = "Reading error, parsing floats in ";
     size_t ntmp = nseq * (nseq - 1) / 2;
     v_dist.reserve (ntmp);
     try {
@@ -184,7 +184,7 @@ read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
             }
         }
     } catch (ios_base::failure &e) {
-        return (bust(__func__, read_err + dist_fname + '\n' + e.what() + '\n'));
+        return (bust(__func__, read_err, dist_fname, "\n", e.what(), 0));
     }
     v_dist.shrink_to_fit();
     return EXIT_SUCCESS;
@@ -195,14 +195,14 @@ read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
 int
 read_distmat (const char *dist_fname, vector<dist_entry> &v_dist, vector<string> &v_cmt)
 {
-    const string e_info = "Failed reading info lines from ";
+    const char *e_info = "Failed reading info lines from";
     ifstream infile (dist_fname);
     if (!infile)
-        return (bust (__func__, string ("Failed opening ") + dist_fname + ": " + strerror(errno) + '\n'));
+        return (bust (__func__, "Failed opening ", dist_fname, ": ", strerror(errno), 0));
 
     unsigned nseq;
     if ((nseq = read_info (infile, dist_fname)) == EXIT_FAILURE)
-        return (bust (__func__, e_info + dist_fname + '\n'));
+        return (bust (__func__, e_info, dist_fname, 0));
 
     if (read_mafft_seq (infile, v_cmt, dist_fname, nseq) == EXIT_FAILURE)
         return EXIT_FAILURE;

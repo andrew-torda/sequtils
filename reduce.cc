@@ -319,8 +319,8 @@ write_kept_seq (const char *in_fname, const char *out_fname,
                 map<string, fseq_prop> &f_map, const vector<bool> &v_used)
 {
     ifstream in_file (in_fname);
-    const string o_fail_r = "open fail (reading) on ";
-    const string o_fail_w = "open fail for writing on ";
+    const char *o_fail_r = "open fail (reading) on ";
+    const char *o_fail_w = "open fail for writing on ";
     bool filter_col;
     if (v_used.size() != 0)
         filter_col = true;
@@ -329,11 +329,11 @@ write_kept_seq (const char *in_fname, const char *out_fname,
 
     fseq fs;
     if (! in_file)
-        return(bust(__func__, o_fail_r + in_fname));
+        return(bust(__func__, o_fail_r, in_fname, 0));
 
     ofstream out_file (out_fname);
     if ( ! out_file)
-        return (bust(__func__, o_fail_w + out_fname + ": " + strerror(errno)));
+        return (bust(__func__, o_fail_w, out_fname, ": ",  strerror(errno), 0));
 
     while (fs.fill (in_file, 0)) {
         const map<string, fseq_prop>::const_iterator missing = f_map.end();
@@ -377,7 +377,7 @@ find_used_columns (const char *in_fname,
     ifstream in_file (in_fname);
     fseq fs;
     if (! in_file)
-        return (bust(__func__, string("open fail reading from ") + in_fname));
+        return (bust(__func__, "open fail reading from ", in_fname, 0));
 
     const map<string, fseq_prop>::const_iterator missing = f_map.end();
     while (fs.fill (in_file, 0)) {
@@ -492,12 +492,12 @@ main (int argc, char *argv[])
         read_distmat (dist_fname, v_dist, v_cmt) ;
     } catch (runtime_error &e) {
         gsl_thr.join(); sac_thr.join();
-        return (bust(progname, string ("error reading distance matrix") + e.what()));
+        return (bust(progname, "error reading distance matrix", e.what(), 0));
     }
     gsl_thr.join();
     if (gsl_ret != EXIT_SUCCESS) {
         sac_thr.join();
-        return (bust(progname, "error in get_seq_list"));
+        return (bust(progname, "error in get_seq_list", 0));
     }
 
     if (check_lists (s_props.f_map, v_cmt) == EXIT_FAILURE) {
@@ -512,7 +512,7 @@ main (int argc, char *argv[])
     if (sacred_fname) {
         sac_thr.join();
         if (sacred_ret != EXIT_SUCCESS)
-            return (bust(progname, string ("error reading sacred file from") + sacred_fname));
+            return (bust(progname, "error reading sacred file from", sacred_fname, 0));
         if (mark_sacred (s_props.f_map, v_sacred) != EXIT_SUCCESS)
             return EXIT_FAILURE;
     }
