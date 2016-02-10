@@ -38,7 +38,8 @@ bust (const char *func, ...)
     const char *s = va_arg (sl, const char *);
     for ( ; s; s = va_arg (sl, const char *))
         { errmsg += s; errmsg += ' '; }
-    
     va_end (sl);
+    errmsg += '\n';
+    std::cerr << errmsg;
     return EXIT_FAILURE;
 }
