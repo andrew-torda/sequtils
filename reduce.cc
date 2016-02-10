@@ -493,7 +493,8 @@ main (int argc, char *argv[])
 
     if (check_lists (s_props.f_map, v_cmt) == EXIT_FAILURE) {
         const char *o = "\", original sequences from \"";
-        sac_thr.join();
+        if (sacred_fname)
+            sac_thr.join();
         return(bust(progname, "distmat file: \"", dist_fname, o, in_fname, 0));
     }
     if (seedflag)
