@@ -56,10 +56,8 @@ static int usage ( const char *progname, const char *s)
 {
     static const char *u
         = ": [-fsv -a sacred_file -c choice -e seed] mult_seq_align.msa \
-dist_mat.hat2 outfile.msa n_to_keep\n";
-    cerr << progname << s << '\n';
-    cerr << progname << u;
-    return EXIT_FAILURE;
+dist_mat.hat2 outfile.msa n_to_keep";
+    return (bust(progname, s, "\n", progname, u, 0));
 }
 
 /* ---------------- from_queue -------------------------------
@@ -90,10 +88,8 @@ get_seq_list (struct seq_props & s_props, const char *in_fname, int *ret) {
     size_t len;
     ifstream infile (in_fname);
     if (!infile) {
-        errmsg += ": opening " + string (in_fname) + ": " + strerror(errno) + '\n';
-        cerr << errmsg;
         *ret = EXIT_FAILURE;
-        return;
+        return (bust_void(__func__, "opening", in_fname, strerror(errno), 0));
     }
     { /* look at the first sequence, get the length, so we can check on */
         streampos pos = infile.tellg();             /* subsequent reads */
@@ -130,10 +126,8 @@ get_sacred (const char *sacred_fname, vector<string> &v_sacred, int *sacred_ret)
     ifstream sac_file (sacred_fname);
     string s;
     if (!sac_file) {
-        cerr << __func__ << ": opening " << sacred_fname
-             << ": " << strerror(errno) << '\n';
         *sacred_ret = EXIT_FAILURE;
-        return;
+        return(bust_void(__func__, "opening", sacred_fname, ":", strerror(errno), 0));
     }
     while (mgetline (sac_file, s))
         v_sacred.push_back (s);
@@ -150,13 +144,10 @@ static int
 check_lists ( const map<string, fseq_prop> &f_map, vector<string> &v_cmt)
 {
     unsigned n = 0;
-    for (vector<string>::const_iterator it = v_cmt.begin(); it != v_cmt.end(); it++) {
-        if (f_map.find(*it) == f_map.end()) {
-            cerr << __func__<< " Sequence \"" << *it << "\" in distmat file not found\n" <<
-                "It was sequence number " << n << '\n';
-            return EXIT_FAILURE;
-        }
-    }
+    const char *s1 = "\" in distmat file not found\nIt was sequence number ";
+    for (vector<string>::const_iterator it = v_cmt.begin(); it != v_cmt.end(); it++)
+        if (f_map.find(*it) == f_map.end())
+            return(bust(__func__, "Sequence \"", it->c_str(), s1, to_string(n).c_str(), 0));
     return EXIT_SUCCESS;
 }
 
@@ -170,10 +161,8 @@ mark_sacred (map<string, fseq_prop> &f_map, vector<string> &v_sacred)
     vector<string>::const_iterator it = v_sacred.begin() ;
     int ret = EXIT_SUCCESS;
     for ( ;it != v_sacred.end(); ++it) {
-        if (f_map.find(*it) == f_map.end()) {
-            cerr << __func__ << "seq starting " << *it << " not found\n";
-            return EXIT_FAILURE;
-        }
+        if (f_map.find(*it) == f_map.end())
+            return (bust(__func__, "seq starting", it->c_str(), "not found", 0));
         f_map[*it].make_sacred();
     }
     return ret;
@@ -460,7 +449,8 @@ main (int argc, char *argv[])
             seed = DFLT_SEED;
         r_engine.seed( seed);
     } catch (const std::invalid_argument& ia) {
-        cerr << "Invalid argument: " << ia.what() << '\n'; return EXIT_FAILURE; }
+        return(bust(progname, "invalid argument: ", ia.what(), 0));
+    }
     cout << progname << ": using " << in_fname << " as multiple seq alignment.\nDistance matrix from "
          << dist_fname << "\nWriting to " << out_fname
          << "\nKeeping " << n_to_keep << " of the sequences\n";
@@ -501,11 +491,9 @@ main (int argc, char *argv[])
     }
 
     if (check_lists (s_props.f_map, v_cmt) == EXIT_FAILURE) {
-        const string err_d_file = "distance matrix file was: ";
-        const string err_o_seqs = ", original sequences from ";  /* xxx finish this xxxxx */
-        cerr << __func__ << ": distmat file: \""<< dist_fname << "\", original sequences from \""<< in_fname<< '\n';
+        const char *o = "\", original sequences from \"";
         sac_thr.join();
-        return EXIT_FAILURE;
+        return(bust(progname, "distmat file: \"", dist_fname, o, in_fname, 0));
     }
     if (seedflag)
         remove_seeds (s_props.f_map, v_cmt);
