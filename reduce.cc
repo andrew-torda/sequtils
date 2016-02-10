@@ -486,7 +486,8 @@ main (int argc, char *argv[])
     }
     gsl_thr.join();
     if (gsl_ret != EXIT_SUCCESS) {
-        sac_thr.join();
+        if (sacred_fname)
+            sac_thr.join();
         return (bust(progname, "error in get_seq_list", 0));
     }
 
