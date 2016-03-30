@@ -1,0 +1,87 @@
+.TH findpath local 2015-10-22 local  "local doc"
+.SH NAME
+findpath \- find the path between two proteins
+.SH SYNOPSIS
+.B findpath
+[ options ]
+.I special_seq_file distance_file [seq_in_fname]
+.LP
+Read a file of distances for all proteins in a multiple sequence
+alignment. For two proteins, find the path between them that is
+reached by considering only close connections.
+.SH DESCRIPTION
+.LP
+For some set of proteins calculate a multiple sequence alignment using
+a program like
+.B mafft
+, but use the option to get a distance file (what is it ?). This is
+the
+.I distance file
+ which ends with a
+.I .hat2
+ extension. Then find the two sequences of interest. Put their
+ comments (names) in a file like:
+.RS
+.nf
+
+> AAX51857.1 putative profilin [Toxoplasma gondii]
+> NP_001015592.1 profilin-1 [Bos taurus]
+
+.fi
+.RE
+The
+.B \>
+is fasta format for introducing a comment. It must be present. The
+intention is that one cuts and pastes from the file containing the
+sequences.
+Now run
+.B findpath
+. This will read the distances starting from the shortest and stop when there is a graph connecting the two sequences of interest. The graph also contains lots of other stuff.
+Now start from the one sequence, called the source, and use Dijkstra's
+method to find the shortest path to the second sequence.
+.SH OPTIONS
+.TP 7
+.BI -s\ seq_out_fname
+We will go back to the original file
+.I seq_in_fname
+, of sequences in fasta format.
+We have visited sequences which are closely connected
+.I en route
+to finding the path. This option will save this set of sequences to
+.I seq_out_fname.
+. The idea is that, having removed distant sequences, you might want to re-align these sequences. This set does not contain any really unhelpful sequences, so you could consider saving it and re-aligning. In practice, I have not seen any cases where the set is significantly smaller.
+.TP 7
+.BI -u\  unloved_sequence_fname
+Sequences which are not part of the selected set might be fun to know
+about. A list of names (not full sequences) will be written to
+.I unloved_sequence_fname.
+.SH PHILOSOPHY
+We have two proteins with slightly different functions or substrate
+specificities. We would like to know, in an evolutionary sense, where
+the function changes. One approach would be to try ancestral
+reconstruction. The alternative, implemented here, is to use known
+sequences and collect the set of steps which are as small as possible
+which connect the two proteins. The difference is that these proteins
+probably exist, since they are databank sequences.
+.SH WHAT TO EXPECT
+You have a collection of a few thousand sequences and pick two of
+them. If you have 10^3 sequences, you have a distance matrix of 10^6/2
+entries. You run the program and will find
+.IP *
+The path between the two proteins is often very short.
+.IP *
+If the two proteins are near to each other, the set of sequences
+connecting them is much smaller than the original set. If the two
+proteins are very far from each other (like profilin from malaria and
+a mammal profilin) the set of sequences will be large. The path,
+however, is probably not so long.
+.IP *
+Most interesting: You can see where the biggest jump is. This is the
+pair of sequences whose evolutionary distance is largest and the
+alignment is most likely to have errors. This is the weakest link in
+the path.
+.SH BUGS
+.IP "missing sequences"
+Using the -s option... If you have seed sequences, they are not in the original sequence file, since they are separate seed alignments. The program prints out a message that it cannot find the sequences and then seg faults anyway. Fix this.
+.IP "Saving sequences from the path"
+Currently you get a list of sequences which connect the ones of interest to you. You probably want to look at them. You have to manually extract them. We probably want an option to select them from the original data set.
