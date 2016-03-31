@@ -1,0 +1,85 @@
+.\" 4 Dec 2015
+.TH CLEAN_SEQS 2015-12-4 "local"  "local"
+.SH NAME
+clean_seqs \- Clean a set of sequences
+.SH SYNOPSIS
+.nf
+clean_seqs [-gnv ] [-i n] [-j n] [-s x] [-t x] [-w warn_file] tag_file in_sequence_file out_sequence_file
+.fi
+.SH DESCRIPTION
+We have a big number of sequences. Some of them have pieces we do not want, like His-tags. Some are too long or too short. Remove tags from sequences and remove whole sequences if we do not like them. Tags are defined by the
+.B tag_file
+. The tag file consists of lines, each with two or three parts. Anthing after a comment character,
+.I #
+is ignored. The parts are
+.IP 1
+A regular expression in case-insensitive ECMAscript format. For example, a poly his tag at the C-terminus looks like
+.nf
+^h{4,}  N-terminal his tag # comment here
+.fi
+This says that we will match 4 or more "H" characters at the start of the line.
+.IP 2
+After the regular expression, there is a description of a few words which says what the pattern is. It will be printed out.
+.IP 3
+This is optional. You can put notes after the hash \"#\" character.
+blah
+.SH OPTIONS
+.IP -g
+Do not remove gaps. Normally gap characters,
+.I \-
+, are removed from input sequences. This option says to leave them in the sequence.
+.IP "-i n"
+Sequences with less than
+.I N
+residues will be thrown away.
+.IP "-j n"
+Sequences with more than
+.I N
+residues will be thrown away.
+.IP -n
+Do not write the output file.
+.IP "-s x"
+Remove sequences which are
+.I x
+standard deviations smaller than the median.
+.IP "-t x"
+Remove sequences which are
+.I x
+standard deviations longer than the median.
+.IP -v
+Increase the verbosity. This option can appear multiple times.
+.IP "-w warn_file"
+This is like the
+.I seq_tag_file
+described below, but patterns in this file are not removed. They are just noted on the standard output.
+
+The
+.I \-i
+and
+.I \-s
+options do the same thing (minimum sequence length), but the first is in terms of standard deviations, while the second is simply a number of residues.
+The
+.I \-j
+and
+.I \-t
+flags are similarly redundant. If you give a redundant pair, which gets used is implementation dependent (as they say).
+.SH IMPLEMENTATION
+First version of the code used to used to read sequences, clean up gaps and then send them to a thread for expression matching and another thread for collecting statistics. The problem is, we cannot begin writing until we have seen all the sequences.
+.PP
+We now admit that threading is fun, but it is better to do one pass over the input, get statistics and use them in the second pass. We could go further and say that this might be better as two programs.
+.PP
+The code uses a few threads, but the library implementation of getline() seems to use a static buffer. It was causing collisions. This means we use our own getline() which uses a buffer from the stack.
+.IP 1
+Read sequences, get statistics and decide what to do.
+.IP 2
+Remove sequences according to what was decided in step 1.
+.PP
+For the moment, there is no plan to do this.
+.SH COMPILING AND LIBRARIES
+We use C++ 11 libraries (for threads), so we need a the flag in the Makefile for c11. We use C++ 11 libraries (for regular expressions) and found that gcc 4.8 supports everything except regexen. The boost library works, so we have to link with the option in the Makefile. This will go away if we upgrade from gcc 4.8 to 4.9 or higher. Strictly, the problem is not the compiler, but libstdc++. clang probably suppports regex's, so we should #ifdef the code and use its support if available.
+
+.SH BUGS
+.IP .
+The code calls regex_search() followed by regex_replace(). I think we can get rid of the regex_replace() call and use string operations based on the match object.
+.IP .
+The code should make a hash of sequence names and not bother to write copies of sequences.
