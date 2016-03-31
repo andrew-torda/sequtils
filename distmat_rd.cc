@@ -190,6 +190,78 @@ read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
     return EXIT_SUCCESS;
 }
 
+
+/* ---------------- no_node_in_common ------------------------
+ */
+static bool
+no_node_in_common (const struct dist_entry &a, const struct dist_entry &b)
+{
+    if ((a.ndx1 == b.ndx1) || (a.ndx1 == b.ndx2) ||
+        (a.ndx2 == b.ndx1) || (a.ndx2 == b.ndx2))
+        return false;
+    return true;
+}
+/* ---------------- smaller_node_num  ------------------------
+ * For an edge, return the node with the smaller number
+ */
+static unsigned
+smaller_node_num (const struct dist_entry d_e)
+{
+    if (d_e.ndx1 < d_e.ndx2)
+        return d_e.ndx1;
+    return d_e.ndx2;
+}
+/* ---------------- get+relevant_pair ------------------------
+ * There are four possibilies, so step through them.
+ * of the pairs AB and CD, if A is the same as C, we want to
+ * return BD and so on.
+ */
+struct two_u {
+    unsigned int a;
+    unsigned int b;
+};
+
+static struct two_u
+get_relevant_pair (const struct dist_entry &a, const struct dist_entry &b)
+{
+    if (a.ndx1 == b.ndx1)
+        return {a.ndx2, b.ndx2 };
+    if (a.ndx1 == b.ndx2)
+        return {a.ndx2, b.ndx1 };
+    if (a.ndx2 == b.ndx1)
+        return {a.ndx1, b.ndx2 };
+    if (a.ndx2 == b.ndx2)
+        return {a.ndx1, b.ndx1};
+    prog_bug (__FILE__, __LINE__, "node comparison broke");
+    return {a.ndx1, b.ndx1 };
+}
+
+/* ---------------- dist_ent_cmp -----------------------------
+ * Compare distance matrix entries. This is complicated.
+ * If the distances are different, do a numeric comparison.
+ * If the distances are equal, we have to compare based on
+ * node names.
+ */
+static bool
+dist_ent_cmp (const struct dist_entry &a, const struct dist_entry &b)
+{
+    if (a.dist < b.dist)
+        return true;
+    if (a.dist > b.dist)
+        return false;   /* now the difficult cases */
+    if (no_node_in_common (a, b)) {
+        if (smaller_node_num (a) < smaller_node_num (b))
+            return true;
+        else
+            return false;
+    } else {             /* There is a node in common */
+        struct two_u t = get_relevant_pair (a, b);
+        return (t.a < t.b);
+    }
+    prog_bug (__FILE__, __LINE__, "dist_ent_compare broken");
+}
+
+
 /* ---------------- read_distmat -----------------------------
  */
 int
@@ -211,9 +283,7 @@ read_distmat (const char *dist_fname, vector<dist_entry> &v_dist, vector<string>
         return EXIT_FAILURE;
     infile.close();
 
-    std::sort( v_dist.begin(), v_dist.end(),
-               [](const struct dist_entry &a, const struct dist_entry &b)
-               { return a.dist < b.dist; } );
+    std::sort( v_dist.begin(), v_dist.end(), dist_ent_cmp);
 
     return EXIT_SUCCESS;
 }
