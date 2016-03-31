@@ -12,7 +12,7 @@
 #include <queue>
 /* #include <regex> gcc 4.8 version is broken, so we use boost:: below */
 #include <string>
-
+#include <unordered_set>
 #include <cerrno>
 #include <unistd.h>  /* for getopt() */
 #include <boost/regex.hpp> /* when we update gcc, get rid of this */
@@ -184,6 +184,8 @@ clean_one_seq (const string &s, const bool keep_gap)
  * This thread also starts the tag_remover process. We could start
  * the tag_remover in the caller, which would just mean declaring
  * the queue and passing it here as an arguement.
+ * Each sequence comment is put in a hash. If a sequence re-occurs
+ * we ignore it after the first time.
  */
 static void
 cleaner (t_queue<fseq> &cleaner_in_q, t_queue<fseq> &tag_rmvr_out_q,
@@ -193,19 +195,28 @@ cleaner (t_queue<fseq> &cleaner_in_q, t_queue<fseq> &tag_rmvr_out_q,
 {
     t_queue<fseq> tag_rmvr_in_q (CLN_QBUF+2);
     string replace = "";              /* when we update gcc */
-    unsigned n = 0;
+    unsigned in_n = 0;
+    unsigned out_n = 0;
+    unordered_set<string> name_hash;
+    
     thread tag_rmvr_thr (tag_remover, ref(v_seq_tag), ref(v_warn_tag),
                          ref(tag_rmvr_in_q), ref(tag_rmvr_out_q), criteria);
     while (cleaner_in_q.alive()) {
         fseq f = cleaner_in_q.front_and_pop();
-        f.clean(keep_gap);
-        tag_rmvr_in_q.push (f);
-        n++;
+        in_n++;
+        if (name_hash.find (f.get_cmmt()) == name_hash.end())  {
+            name_hash.insert (f.get_cmmt());
+            f.clean(keep_gap);
+            tag_rmvr_in_q.push (f);
+            out_n++;
+        } else {
+            cout << "duplicate: " << f.get_cmmt().substr (0,25) << "\n";
+        }
     }
     tag_rmvr_in_q.close();
     tag_rmvr_thr.join();
     if (verbosity > 1)
-        cout << __func__<< ": put "<< n << " sequences on queues\n";
+        cout << __func__<< ": got "<< in_n << " seqs. Wrote "<< out_n << " seqs\n";
 }
 
 
