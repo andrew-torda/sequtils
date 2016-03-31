@@ -79,7 +79,14 @@ For the moment, there is no plan to do this.
 We use C++ 11 libraries (for threads), so we need a the flag in the Makefile for c11. We use C++ 11 libraries (for regular expressions) and found that gcc 4.8 supports everything except regexen. The boost library works, so we have to link with the option in the Makefile. This will go away if we upgrade from gcc 4.8 to 4.9 or higher. Strictly, the problem is not the compiler, but libstdc++. clang probably suppports regex's, so we should #ifdef the code and use its support if available.
 
 .SH BUGS
-.IP .
+.IP \(bu
 The code calls regex_search() followed by regex_replace(). I think we can get rid of the regex_replace() call and use string operations based on the match object.
-.IP .
-The code should make a hash of sequence names and not bother to write copies of sequences.
+.IP \(bu
+As sequences are read, their comment fields are put in a hash to look for duplicates. We should
+.RS
+.IP \(bu
+make this an option
+.IP \(bu
+remove white space from comments to save memory
+.RE
+
