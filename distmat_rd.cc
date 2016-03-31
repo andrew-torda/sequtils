@@ -233,7 +233,7 @@ get_relevant_pair (const struct dist_entry &a, const struct dist_entry &b)
     if (a.ndx2 == b.ndx2)
         return {a.ndx1, b.ndx1};
     prog_bug (__FILE__, __LINE__, "node comparison broke");
-    return {a.ndx1, b.ndx1 };
+
 }
 
 /* ---------------- dist_ent_cmp -----------------------------
@@ -258,7 +258,6 @@ dist_ent_cmp (const struct dist_entry &a, const struct dist_entry &b)
         struct two_u t = get_relevant_pair (a, b);
         return (t.a < t.b);
     }
-    prog_bug (__FILE__, __LINE__, "dist_ent_compare broken");
 }
 
 
