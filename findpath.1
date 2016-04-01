@@ -11,16 +11,15 @@ alignment. For two proteins, find the path between them that is
 reached by considering only close connections.
 .SH DESCRIPTION
 .LP
-For some set of proteins calculate a multiple sequence alignment using
+For some set of proteins, calculate a multiple sequence alignment using
 a program like
-.B mafft
-, but use the option to get a distance file (what is it ?). This is
-the
-.I distance file
- which ends with a
-.I .hat2
- extension. Then find the two sequences of interest. Put their
- comments (names) in a file like:
+.BR "mafft",
+but use the option to get a distance file (--distout). This
+.I "distance file"
+ends with a
+.I ".hat2"
+extension. Then find the two sequences of interest. Put their
+comments (names) in a file like:
 .RS
 .nf
 
@@ -35,8 +34,8 @@ is fasta format for introducing a comment. It must be present. The
 intention is that one cuts and pastes from the file containing the
 sequences.
 Now run
-.B findpath
-. This will read the distances starting from the shortest and stop when there is a graph connecting the two sequences of interest. The graph also contains lots of other stuff.
+.BR "findpath".
+This will read the distances starting from the shortest and stop when there is a graph connecting the two sequences of interest. The graph also contains lots of other stuff.
 Now start from the one sequence, called the source, and use Dijkstra's
 method to find the shortest path to the second sequence.
 .SH OPTIONS
@@ -55,6 +54,7 @@ to finding the path. This option will save this set of sequences to
 Sequences which are not part of the selected set might be fun to know
 about. A list of names (not full sequences) will be written to
 .I unloved_sequence_fname.
+What you know is that these sequences are not necessary to connect proteins A and B and they are not very closely connected to any protein that is necessary. It may not be a bad idea to remove them from the set and recalculate the alignment.
 .SH PHILOSOPHY
 We have two proteins with slightly different functions or substrate
 specificities. We would like to know, in an evolutionary sense, where
@@ -63,6 +63,22 @@ reconstruction. The alternative, implemented here, is to use known
 sequences and collect the set of steps which are as small as possible
 which connect the two proteins. The difference is that these proteins
 probably exist, since they are databank sequences.
+.SH ALGORITHM
+We have similarities / distances between every pair of sequences.
+.br
+Put these in a list.
+.br
+Sort the list.
+.br
+Walk up the list, starting from the shortest distances. As each distance is added, check if the proteins of interest (from the
+.IR "special_seq_file")
+are in one connected component. Stop when they are.
+.SM complication
+There is an interesting complication. Imagine you have proteins A, B, C and D, but proteins B and C are the same. This can happen if you have duplicate sequences. We then have a relation like
+.nf
+   A .... B.C .... D
+.fi
+The AB distance is seen and put in the graph. The CD distance is seen before BD. We might then end up with a path ABCD, whereas this is not really shorter than ABD. I am not sure if this problem is really fixed. There is a similar problem with identical distances. I think a fix to this might involve a sorting of each list of neighbours of each node. For the moment, there is one messy hack. As distances are sorted, they are compared by size. If two have the same size, they are compared lexicographically.
 .SH WHAT TO EXPECT
 You have a collection of a few thousand sequences and pick two of
 them. If you have 10^3 sequences, you have a distance matrix of 10^6/2
