@@ -9,7 +9,9 @@ reduce \- clean and filter a multiple sequence alignment
 .SH DESCRIPTION
 We have a huge multiple sequence alignment that is too big for building a good tree. This program will read the distance matrix from mafft, visit pairs of sequences that are most similar and remove one member of each pair. If there are sequences which are especially interesting, you can declare them to be sacred. If they appear within a pair, they will not be removed.
 .PP
-From each pair, we can also choose the strategy for removing members.
+From each pair, we can also choose the strategy for removing members. By default, we keep the first sequence from every pair, but this can be changed with the
+.B \-c
+option.
 .SH OPTIONS
 .TP 7
 \fB-a\fP \fIfilename\fP
@@ -19,12 +21,14 @@ From each pair, we can also choose the strategy for removing members.
 .BI \-c " method"
 From pairs of sequences, we have to pick which to delete. This is done according to
 . Which can be one of
+.RS
 .IP first 14
 From each pair, choose the first.
 .IP second 14
 From each pair, choose the second.
 .IP random 14
 From each pair, choose one pseudo-randomly.
+.RE
 .TP 7
 .BI \-e " seed"
 If using the random choice method for picking sequences to keep, set the random seed with this option. If you do not do so, there will be a default value so you will get reproducibility from run to run.
