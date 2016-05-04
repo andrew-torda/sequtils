@@ -48,19 +48,19 @@ static const char *NDX_STR = ". =";
  */
 static unsigned
 read_info (ifstream &infile, const char *dist_fname){
-    stringstream errmsg (string (__func__));
-    errmsg << ": reading from " + string (dist_fname) + string (", ");
+    stringstream errmsg (string (__func__) + ": reading from " +
+                         string (dist_fname) + string (", "));
     unsigned long i, nseq; /* excessive, but correct for stoul */
     string t;
     mgetline (infile, t);
     if ((i = stoul(t)) != 1) {
-        cerr << errmsg << "expected 1 on first line, got" + to_string(i) + string ("\n");
+        cerr << errmsg.str() << "expected 1 on first line, got" + to_string(i) + string ("\n");
         return 0;
     }
     mgetline (infile, t);
     nseq = stoul(t);
     if (nseq > 10000000) {
-        cerr << errmsg << ". Broken. nseq seems to be "<<nseq<<'\n';
+        cerr << errmsg.str() << ". Broken. nseq seems to be "<<nseq<<'\n';
         return 0;
     }
     
