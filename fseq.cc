@@ -1,5 +1,5 @@
 /* 10 oct 2015 */
-static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.8 2015/12/17 12:19:49 torda Exp torda $";
+static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.9 2016/01/19 10:33:05 torda Exp torda $";
 
 #include <csignal>
 #include <fstream>
@@ -7,8 +7,8 @@ static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.8 2015/12/1
 #include <sstream>
 #include <string>
 #include <stdexcept>
-#include <boost/regex.hpp> /* when we update gcc, get rid of this */
 
+#include "regex_prob.hh"
 #include "fseq.hh"
 #include "mgetline.hh"
 
@@ -87,12 +87,12 @@ fseq::fseq(ifstream &infile, const size_t len_exp) {
 void
 fseq::clean (bool keep_gap)
 {
-    const boost::regex white("\\s");  /* Here is where we want */
-    const boost::regex gap("-");      /* to move to std library */
+    const regex_choice::regex white("\\s");  /* Here is where we want */
+    const regex_choice::regex gap("-");      /* to move to std library */
     string replace = "";              /* when we update gcc */
-    seq = boost::regex_replace (seq, white, replace);
+    seq = regex_choice::regex_replace (seq, white, replace);
     if (! keep_gap)
-        seq = boost::regex_replace (seq, gap, replace);
+        seq = regex_choice::regex_replace (seq, gap, replace);
 }
 
 /* ---------------- fseq::write ------------------------------
