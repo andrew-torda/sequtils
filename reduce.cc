@@ -209,17 +209,18 @@ decide_longer(const fseq_prop &f1, const fseq_prop &f2, default_random_engine &r
 static decider_f *
 set_up_choice (const string &s)
 {
-    map <const string, decider_f*> choice_map;
+    map <const string, decider_f *> choice_map;
     choice_map["first"]  = always_first;  /* Table of keywords and */
     choice_map["second"] = always_second; /* function pointers */
     choice_map["random"] = decide_random;
     choice_map["longer"] = decide_longer;
+    const map<const string, decider_f *>::const_iterator missing = choice_map.end();
+    const map<const string, decider_f *>::const_iterator ent = choice_map.find(s);
 
-    const map<string, decider_f *>::const_iterator missing = choice_map.end();
-    const map<string, decider_f *>::const_iterator ent = choice_map.find(s);
     if (ent == missing) {
-        cerr << __func__ <<": random choice type \"" << s << "\" not known. Stopping. Try one of..\n   ";
-        map<string, decider_f *>::const_iterator it = choice_map.begin();
+        cerr << __func__ <<": random choice type \"" << s
+             << "\" not known. Stopping. Try one of..\n   ";
+        map<const string, decider_f *>::const_iterator it = choice_map.begin();
         for (; it != missing; it++)
             cout << it->first << " " << '\n';
         cout << endl;
