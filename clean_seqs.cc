@@ -10,14 +10,12 @@
 #include <iomanip>
 #include <iostream>
 #include <queue>
-/* #include <regex> gcc 4.8 version is broken, so we use boost:: below */
 #include <string>
 #include <unordered_set>
 #include <cerrno>
 #include <unistd.h>  /* for getopt() */
-#include <boost/regex.hpp> /* when we update gcc, get rid of this */
 
-
+#include "regex_prob.hh"
 #include "bust.hh"
 #include "fseq.hh"
 #include "mgetline.hh"
@@ -48,7 +46,7 @@ struct criteria {
 };
 
 struct seq_tag {
-    boost::regex pattern;
+    regex_choice::regex pattern;
     string comment;
 };
 
@@ -103,8 +101,8 @@ regex_check (const vector<seq_tag> &v_seq_tag, vector<struct result> &v_res,
     bool match = false;
     string s = f.get_seq();
     for (; v_it != v_seq_tag.end(); v_it++) {
-        boost::smatch sm;
-        if (boost::regex_search (s, sm, v_it->pattern)) {
+        regex_choice::smatch sm;
+        if (regex_choice::regex_search (s, sm, v_it->pattern)) {
             match = true;
             struct result result;
             result.matched = sm[0];
@@ -164,16 +162,17 @@ tag_remover (vector<seq_tag> &v_seq_tag, vector<seq_tag> &v_warn_tag,
 }
 
 /* ---------------- clean_one_seq ----------------------------
+ * xxxxXXXXXXX this is where I am up to
  */
 static string
 clean_one_seq (const string &s, const bool keep_gap)
 {
-    static const boost::regex white("\\s");  /* Here is where we want */
-    static const boost::regex gap("-");      /* to move to std library */
-    const char *replace = "";
-    string new_s = boost::regex_replace (s, white, replace);
+    static const regex_choice::regex white("\\s");  /* Here is where we want */
+    static const regex_choice::regex gap("-");      /* to move to std library */
+    static const string replace ("");
+    string new_s = regex_choice::regex_replace (s, white, replace);
     if (! keep_gap)
-        new_s = boost::regex_replace (new_s, gap, replace);
+        new_s = regex_choice::regex_replace (new_s, gap, replace);
     return new_s;
 }
 
@@ -337,15 +336,17 @@ split_to_tag ( string &s, struct seq_tag *s_t)
 {
     string tmp;
     string::size_type pos = s.find(' ');
+    static const string nothing ("");
     if (pos == s.npos)
         tmp = "";
     else
         tmp = s.substr (pos);
-    tmp = boost::regex_replace(tmp, boost::regex("^\\s+"), ""); /* remove leading spaces */
+    /* remove leading spaces */
+    tmp = regex_choice::regex_replace(tmp, regex_choice::regex("^\\s+"), nothing);
     s_t->comment = tmp;
     s.resize(pos);
-    boost::regex r(s);
-    s_t->pattern = boost::regex(s, boost::regex::icase|boost::regex::optimize);
+    regex_choice::regex r(s);
+    s_t->pattern = regex_choice::regex(s, regex_choice::regex::icase|regex_choice::regex::optimize);
 }
 
 
