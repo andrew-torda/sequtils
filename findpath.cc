@@ -45,7 +45,7 @@ usage (const char *progname, const char *s)
     static const char *u
         = "[-s seq_out_fname] [-u unloved_seqs] interesting_seq_file dist_mat_file [seq_in_fname]\n";
     cerr << progname << ": "<< s<<'\n';
-    return (bust (progname, u));
+    return (bust (progname, u, NULL));
 }
 
 /* ---------------- get_spec_seqs ----------------------------
