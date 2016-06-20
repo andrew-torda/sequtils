@@ -48,15 +48,23 @@ static const char *NDX_STR = ". =";
  */
 static unsigned
 read_info (ifstream &infile, const char *dist_fname){
-    stringstream errmsg (string (__func__) + ": reading from " +
+    stringstream errmsg (string (__func__) + ": reading distance matrix from " +
                          string (dist_fname) + string (", "));
     unsigned long i, nseq; /* excessive, but correct for stoul */
     string t;
     mgetline (infile, t);
-    if ((i = stoul(t)) != 1) {
-        cerr << errmsg.str() << "expected 1 on first line, got" + to_string(i) + string ("\n");
+    try {        
+        if ((i = stoul(t)) != 1) {
+            cerr << errmsg.str() << "expected 1 on first line, got:\n" + to_string(i) + string ("\n");
+            return 0;
+        }
+    } catch (const std::invalid_argument &e) {
+        cerr << errmsg.str() << "looking for a single integer, got\n" + t + "\n" +
+            __func__ + ": Check if " + dist_fname + " is really a distance matrix file\n";
         return 0;
     }
+    
+     
     mgetline (infile, t);
     nseq = stoul(t);
     if (nseq > 10000000) {
@@ -272,7 +280,7 @@ read_distmat (const char *dist_fname, vector<dist_entry> &v_dist, vector<string>
         return (bust (__func__, "Failed opening ", dist_fname, ": ", strerror(errno), 0));
 
     unsigned nseq;
-    if ((nseq = read_info (infile, dist_fname)) == EXIT_FAILURE)
+    if ((nseq = read_info (infile, dist_fname)) == 0)
         return (bust (__func__, e_info, dist_fname, 0));
 
     if (read_mafft_seq (infile, v_cmt, dist_fname, nseq) == EXIT_FAILURE)
