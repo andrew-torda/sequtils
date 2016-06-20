@@ -32,12 +32,13 @@ bust_void (const char *func, ...)
 int
 bust (const char *func, ...)
 {
-    std::string errmsg = std::string (func) + ": ";
     va_list sl;
+    std::string errmsg = std::string (func) + ": ";
     va_start (sl, func);
-    const char *s = va_arg (sl, const char *);
-    for ( ; s; s = va_arg (sl, const char *))
-        { errmsg += s; errmsg += ' '; }
+    for ( const char *s = va_arg (sl, const char *); s; s = va_arg (sl, const char *)) {
+        errmsg += s;
+        errmsg += ' ';
+    }
     va_end (sl);
     errmsg += '\n';
     std::cerr << errmsg;
