@@ -101,3 +101,6 @@ the path.
 Using the -s option... If you have seed sequences, they are not in the original sequence file, since they are separate seed alignments. The program prints out a message that it cannot find the sequences and then seg faults anyway. Fix this.
 .IP "Saving sequences from the path"
 Currently you get a list of sequences which connect the ones of interest to you. You probably want to look at them. You have to manually extract them. We probably want an option to select them from the original data set.
+It should also remove empty columns.
+.IP name checking
+Checking and retrieving names should be done on the basis of strings with leading and trailing blanks removed.  A program like jalview removes blanks without asking us.
