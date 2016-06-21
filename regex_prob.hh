@@ -27,8 +27,7 @@
 #else
 #    include <boost/regex.hpp>
 #    define regex_choice boost
-#    pragma
-message "Using boost for regex functions"
+#    pragma message "Using boost for regex functions"
 #endif /* old gcc */
 
 
