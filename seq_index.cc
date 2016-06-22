@@ -11,6 +11,7 @@
 #include <istream>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "bust.hh"
 #include "fseq.hh"
@@ -18,16 +19,14 @@
 #include "seq_index.hh"
 using namespace std;
 
-
-#ifdef want_get_seq_by_num
 /* ---------------- get_seq_by_num ---------------------------
  * Given an index of a sequence, return just that sequence.
  */
+#ifdef want_get_seq_by_num
 fseq
 seq_index::get_seq_by_num (unsigned ndx)
 {
     infile.clear();
-
     infile.seekg (indices[ndx]);
     if (infile.bad() || infile.fail()) {
         string s = "Fail seeking on "; throw runtime_error (s + fname);}
@@ -83,15 +82,18 @@ seq_index::get_one (line_read *lr)
 int
 seq_index::fill (const char *fn)
 {
-    fname = fn;
-    infile.open (fname);
+    infile.open (fn);
     if (!infile)
         throw runtime_error (string("Open fail on ") + fname);
-    
+
     line_read lr;
-    while (get_one(&lr))
-        if (lr.first[0] == '>')
+    while (get_one(&lr)) {
+        if (lr.first[0] == '>') {
+            indices.push_back(lr.second);
             s_map.insert (lr);
+        }
+    }
+    indices.shrink_to_fit();
     return EXIT_SUCCESS;
 }
     
