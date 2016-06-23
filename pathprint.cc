@@ -5,20 +5,28 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
+#include "bust.hh"
 #include "distmat_rd.hh"
+#include "filt_string.hh"
+#include "fseq.hh"
 #include "graphmisc.hh"
 #include "pathprint.hh"
+#include "seq_index.hh"
 
 using namespace std;
 
 /* ---------------- Structures and constants -----------------
  */
 static const float BAD_DIST = -1.0;
+static const unsigned SEQ_LINE_LEN = 60;
+
 
 /* ---------------- path::path -------------------------------
  */
@@ -94,7 +102,7 @@ dst o_dist: distance to destination in original distance matrix \n";
 /* ---------------- path::print ------------------------------
  * Write a little report about the path we have.
  * I have suffered under the tyranny of c++'s << long enough.
- * We have the src_dist, dst_dist and p_dist. 
+ * We have the src_dist, dst_dist and p_dist.
  */
 int
 path::print (const char *outfile, const dist_mat &d_m) const
@@ -119,7 +127,7 @@ path::print (const char *outfile, const dist_mat &d_m) const
     *ofs_p << buf;
     snprintf (buf, BSIZ-1, txtfmt, "no", "dist", "dist", "dist", "o_dist", "o_dist");
     *ofs_p << buf;
-    
+
     vector<struct node>::const_reverse_iterator v_it = nodes.rbegin();
 
     for( ;v_it != nodes.rend(); v_it++) {
@@ -138,9 +146,94 @@ path::print (const char *outfile, const dist_mat &d_m) const
                [](const struct node &a, const struct node &b)
                { return a.p_dist < b.p_dist; } );
     *ofs_p << "Sorted by distance. These are the weakest links:\n";
-    {
-        for (v_it = n_copy.rbegin(); v_it < n_copy.rend() - 1 ; v_it++)
-            *ofs_p << "Seq " << v_it->label + 1 << " to "<< v_it->pred_label + 1 << " dist "<< v_it->p_dist<< '\n';
-    }
+
+    for (v_it = n_copy.rbegin(); v_it < n_copy.rend() - 1 ; v_it++)
+        *ofs_p << "Seq " << v_it->label + 1 << " to "<< v_it->pred_label + 1
+               << " dist "<< v_it->p_dist<< '\n';
     return EXIT_SUCCESS;
 }
+
+/* ---------------- path::write_seqs -------------------------
+ * Write the sequences on the path to the output file name.
+ * We cannot really re-use the function for writing larger sets
+ * of sequences to a file, since the order here is important.
+ * We want to be able to look at the file and follow the changes
+ * of residues.
+ */
+int
+path::write_seqs (const char *seq_out_fname, const dist_mat &d_m, seq_index &s_i)
+{
+    ofstream outfile (seq_out_fname);
+    if (!outfile)
+        return (bust(__func__, "Open fail", s_i.get_fname().c_str(),  ": ", strerror(errno), 0));
+    size_t first_size;
+    bool do_remove_columns = true; /* Remove completely empty columns from alignment */
+    vector<fseq> path_seqs;
+    static const char *err1 =
+"Sequences in the sequence file have different sizes.\n\
+This is probably not what you want. Maybe you should delete all output and check that\n\
+you are using sequences after the alignment, not before.\n";
+
+
+ 
+    vector<struct node>::const_reverse_iterator v_it = nodes.rbegin();
+    first_size = s_i.get_seq_by_cmmt(d_m.get_cmt(v_it->label)).get_size();
+    vector<bool> v_c_used(first_size, false);
+
+    try {  /* Next loop visits each node on the path and stores the sequence. */
+        for (; v_it != nodes.rend(); v_it++) {     /* We also check if the size is */
+            string s = d_m.get_cmt(v_it->label);   /* always the same. */
+            fseq fs = s_i.get_seq_by_cmmt(s);      
+            if ((fs.get_size() != first_size) && do_remove_columns ) {
+                cerr << err1;
+                cerr << "Reading sequences from: "<< s_i.get_fname()
+                     << " First sequence length: "<< first_size
+                     << " This sequence length: " << fs.get_size()
+                     << "\nWriting sequences anyway.\n";
+                v_c_used.clear();
+                do_remove_columns = false;
+            }
+            path_seqs.push_back(fs);
+        }
+    } catch (runtime_error &e) {
+        cerr << "Trying to look up sequences " << e.what() << '\n';
+        return EXIT_FAILURE;
+    }
+    /* The sequences on the path are now stored in path_seqs. If they were all the same
+     * length, they probably came from an alignment, so we can remove completely
+     * empty columns
+     */
+    if (do_remove_columns) {
+        vector<fseq>::iterator f_it = path_seqs.begin();
+        for ( ; f_it != path_seqs.end(); f_it++) /* Build a vector which tells us which */
+            set_vec (f_it->get_seq(), v_c_used); /* columns are used (not gaps) */
+        for (f_it = path_seqs.begin(); f_it != path_seqs.end(); f_it++) {
+            string s = f_it->get_seq();
+            squash_string_vec (s, v_c_used);
+            f_it->replace_seq(s);
+        }
+    }
+    {
+        vector<fseq>::iterator f_it = path_seqs.begin();
+        for ( ; f_it != path_seqs.end(); f_it++)
+            f_it->write(outfile, SEQ_LINE_LEN);
+    }
+    outfile.close();
+    return EXIT_SUCCESS;
+}
+
+
+#ifdef want_path_on_path
+/* ---------------- path::on_path ----------------------------
+ * We are given a vector of length of all the sequences.
+ * Mark elements as true if they are on the path.
+ */
+void
+path::on_path (vector<bool> &v_on_path)
+{
+    v_on_path.assign (v_on_path.size(), false);
+    vector<struct node>::const_iterator v_it = nodes.begin();
+    for ( ; v_it != nodes.end(); v_it++)
+        v_on_path[v_it->label] = true;
+}
+#endif /* want_path_on_path */

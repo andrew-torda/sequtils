@@ -22,6 +22,7 @@ class dist_mat;
 #    pragma GCC diagnostic ignored "-Wpadded"
 #endif /* clang */
 
+class seq_index;
 class path {
 private:    
     struct node {
@@ -35,12 +36,15 @@ private:
     };
     std::vector<struct node> nodes;
     std::string nice_string (const node & node) const;
-
-public:
-    path (const std::vector<src_dist_t> &, const unsigned, const unsigned, const dist_mat &);
-    int print (const char *outfile, const dist_mat &d_m) const ;
-
     unsigned n_mbr;
+public:
+    path (const std::vector<src_dist_t> &, const unsigned,
+          const unsigned, const dist_mat &);
+    int write_seqs (const char *seq_out_fname, const dist_mat &d_m, seq_index &s_i);
+    int print (const char *outfile, const dist_mat &d_m) const ;
+#   ifdef want_path_on_path
+        void on_path (std::vector<bool> &v_on_path);
+#   endif /* want_path_on_path */    
 };
 
 #ifdef __clang__
