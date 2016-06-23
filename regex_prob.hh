@@ -23,11 +23,11 @@
 #if (!(defined (regex_bust)))
 #    include <regex>
 #    define regex_choice std
-#    pragma message "Using regex from standards and not boost"
+/* #    pragma message "Using regex from standards and not boost" */
 #else
 #    include <boost/regex.hpp>
 #    define regex_choice boost
-#    pragma message "Using boost for regex functions"
+/* #    pragma message "Using boost for regex functions" */
 #endif /* old gcc */
 
 
