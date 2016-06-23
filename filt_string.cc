@@ -7,21 +7,27 @@
 
 #include <cerrno>
 #include <cstring>
+#include <exception>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 
+#include "filt_string.hh"
 #include "fseq.hh"
 
 static const char GAPCHAR = '-';
 using namespace std;
 
+
 /* ---------------- set_vec  ---------------------------------
  * Given a vector and a string, walk down the string. If a
  * character is not a gap, set the entry in the vector.
+ * This function does not currently check if the vectors are the
+ * same size. Perhaps it should and then throw an exception if
+ * they differ.
  */
-static void
+void
 set_vec (const std::string &s, vector<bool> &v)
 {
     string::const_iterator s_it = s.begin();
@@ -36,9 +42,16 @@ set_vec (const std::string &s, vector<bool> &v)
  * Given a string and a vector of bools, walk down the string
  * and copy those positions where the boolean is true.
  */
-static string
+std::string
 squash_string_vec (std::string &s, const vector<bool> &v)
 {
+    class set_vec_except e;
+    if (s.size() != v.size()) {
+        e.s_siz = s.size();
+        e.v_siz = v.size();
+        throw e;
+    }
+
     if (v.size() != s.size()) {
         std::cerr << __func__<< ": programming mistake. String and vector sizes are different. "
                   << s.size() << " != "<<v.size()<< "\n";
@@ -55,7 +68,7 @@ squash_string_vec (std::string &s, const vector<bool> &v)
     return s;
 }
 
-#define test_me
+#undef test_me
 #ifdef  test_me
 
 #include <cstdlib>
@@ -94,7 +107,14 @@ int main ()
         cout<< __func__<< ": before squash\n" <<
             fs.get_seq()<< '\n';
         string s = fs.get_seq();
-        fs.replace_seq (squash_string_vec (s, v));
+        try {
+            fs.replace_seq (squash_string_vec (s, v));
+        } catch ( set_vec_except &e) {
+            cerr << "BOOMsize of sequence \n" << e.what() << "\nStopping";
+            return EXIT_FAILURE;
+        }
+                
+        
         cout << __func__<< ": after\n" <<
             fs.get_seq() << "\n";
     }
