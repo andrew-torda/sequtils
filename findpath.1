@@ -40,10 +40,23 @@ Now start from the one sequence, called the source, and use Dijkstra's
 method to find the shortest path to the second sequence.
 .SH OPTIONS
 .TP 7
+.BI -p\ seq_on_path_fname
+Go to the (optional) filename containing the sequences.
+For every sequence on the connecting path, extract the sequence and write it to
+.IR seq_on_path_fname.
+If the sequences are of different lengths, they have probably not been
+aligned. If they are all the same length, then they are probably from
+an alignment, so we take special steps. We check which columns are
+completely unused within this set and remove just those columns. This
+gives you a gapped alignment, extracted from the full alignment,
+containing only the gaps necessary for this set of sequences. This
+file is very suited to reading in an alignment viewer like
+.BR jalview .
+.TP 7
 .BI -s\ seq_out_fname
 We will go back to the original file
-.I seq_in_fname
-, of sequences in fasta format.
+.IR seq_in_fname,
+of sequences in fasta format.
 We have visited sequences which are closely connected
 .I en route
 to finding the path. This option will save this set of sequences to
@@ -99,8 +112,5 @@ the path.
 .SH BUGS
 .IP "missing sequences"
 Using the -s option... If you have seed sequences, they are not in the original sequence file, since they are separate seed alignments. The program prints out a message that it cannot find the sequences and then seg faults anyway. Fix this.
-.IP "Saving sequences from the path"
-Currently you get a list of sequences which connect the ones of interest to you. You probably want to look at them. You have to manually extract them. We probably want an option to select them from the original data set.
-It should also remove empty columns.
 .IP name checking
 Checking and retrieving names should be done on the basis of strings with leading and trailing blanks removed.  A program like jalview removes blanks without asking us.
