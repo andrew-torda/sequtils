@@ -1,12 +1,15 @@
 /* 10 oct 2015 */
-static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.9 2016/01/19 10:33:05 torda Exp torda $";
+static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.10 2016/05/05 13:08:12 torda Exp torda $";
 
+#include <algorithm>
+#include <cctype>
 #include <csignal>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
 #include <stdexcept>
+#include <vector>
 
 #include "regex_prob.hh"
 #include "fseq.hh"
@@ -25,6 +28,11 @@ using namespace std;
 
 /* ---------------- structures and constants ----------------- */
 static const char COMMENT = '>';
+
+static bool white (const char s)
+{
+    return isspace (s);
+}
 
 /* ---------------- fseq::fill  ------------------------------
  * The real initialisor/constructor for an fseq.
@@ -48,6 +56,7 @@ fseq::fill (ifstream &infile, const size_t len_exp) {
                 infile.seekg(pos); /* Go back to before we tried reading */
                 break;
             }
+            t.erase(remove_if(t.begin(), t.end(), white), t.end());
             seq += t;
             pos = infile.tellg();
         }
