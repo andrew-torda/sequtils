@@ -43,7 +43,8 @@ static int
 usage (const char *progname, const char *s)
 {
     static const char *u
-        = "[-s seq_out_fname] [-u unloved_seqs] interesting_seq_file dist_mat_file [seq_in_fname]\n";
+        = "[-p seqs_on_path_fname] [-s seq_out_fname]\n\
+           [-u unloved_seqs] interesting_seq_file dist_mat_file [seq_in_fname]\n";
     cerr << progname << ": "<< s<<'\n';
     return (bust (progname, u, NULL));
 }
@@ -522,23 +523,21 @@ dijkstra (const component &cmpnt, const dist_mat &d_m, const vector<unsigned> v_
 }
 
 
-/* ---------------- write_loved_seqs -------------------------
+/* ---------------- write_setof_seqs -------------------------
  * Go to the output file and write the sequences that are
- * part of the component (connected graph).
+ * whose indices are given by the bool vector.
  */
 static int
-write_loved_seqs (const char *seq_in_fname, const char *seq_out_fname,
-                  const dist_mat &d_m, const vector<bool> &v_loved)
+write_setof_seqs (const char *seq_in_fname, const char *seq_out_fname,
+                  const dist_mat &d_m, const vector<bool> &v_loved,
+                  seq_index &s_i)
 {
-    seq_index s_i;
     const char *e_copying = "error copying sequences:";
     cout << __func__<< " Writing sequences from "<< seq_in_fname
          << " to "<< seq_out_fname << '\n';
-    if (s_i(seq_in_fname) == EXIT_FAILURE)
-        return EXIT_FAILURE;
 
     ofstream outfile (seq_out_fname);
-    
+
     if (!outfile)
         return (bust(__func__, "Open fail", seq_out_fname,  ": ", strerror(errno), 0));
     try {
@@ -555,7 +554,7 @@ write_loved_seqs (const char *seq_in_fname, const char *seq_out_fname,
     return EXIT_SUCCESS;
 }
 
-/* ---------------- get_loved --------------------------------
+/* ---------------- write_unloved_seqs -----------------------
  */
 static int
 write_unloved_seqs (const char *unloved_fname, const dist_mat& d_m, const vector<bool>v_loved)
@@ -588,6 +587,7 @@ int
 main ( int argc, char *argv[])
 {
     const char *progname = argv[0],
+               *path_seq_fname    = NULL,
                *special_seq_fname = NULL,
                *mat_in_fname      = NULL,
                *seq_in_fname      = NULL,
@@ -595,19 +595,22 @@ main ( int argc, char *argv[])
                *unloved_fname = NULL; /* Where we  write unloved seqs */
     int c;
     int n_arg = 2;
-    while ((c = getopt (argc, argv, "s:u:")) != -1)
+    while ((c = getopt (argc, argv, "p:s:u:")) != -1)
         switch (c)
             {
-            case 's': seq_out_fname = optarg;                     break;
-            case 'u': unloved_fname = optarg;                     break;
+            case 'p': path_seq_fname = optarg;                     break;
+            case 's': seq_out_fname  = optarg;                     break;
+            case 'u': unloved_fname  = optarg;                     break;
             case '?': return (usage(progname, "unknown option"));
             }
+#   ifdef debug_till_i_vomit
     for (int index = optind; index < argc; index++)
         cout<< "next arg "<< argv[index]<< '\n';
+#   endif /* debug_till_i_vomit */
 
     if (seq_out_fname)
         n_arg++;
-    
+
     if ((argc - optind) < n_arg)
         return (usage(progname, "Too few arguments"));
 
@@ -629,13 +632,26 @@ main ( int argc, char *argv[])
         return EXIT_FAILURE;
     component cmpnt = get_edges (v_spec_ndx, d_m.get_dist());
     cmpnt.describe (d_m);
-    path path = dijkstra (cmpnt, d_m, v_spec_ndx);
-    path.print (nullptr, d_m);
+
+    seq_index s_i;
+    if (seq_out_fname || path_seq_fname) /* both of these might need a seq_index */
+        if (s_i(seq_in_fname) == EXIT_FAILURE)
+            return EXIT_FAILURE;
+
+    {
+        path path = dijkstra (cmpnt, d_m, v_spec_ndx); /* Outside of this little */
+        path.print (nullptr, d_m);                     /* section, we do not need */
+        if (path_seq_fname) {                          /* to store the path */
+            if (path.write_seqs (path_seq_fname, d_m, s_i) == EXIT_FAILURE)
+                return EXIT_FAILURE;
+        }
+    }
+
     vector<bool> v_loved (d_m.get_n_mem(), false);
     if (seq_out_fname || unloved_fname)
         get_loved (cmpnt, v_loved);
     if (seq_out_fname)
-        if (write_loved_seqs (seq_in_fname, seq_out_fname, d_m, v_loved) == EXIT_FAILURE)
+        if (write_setof_seqs (seq_in_fname, seq_out_fname, d_m, v_loved, s_i) == EXIT_FAILURE)
             return EXIT_FAILURE;
     if (unloved_fname)
         if (write_unloved_seqs (unloved_fname, d_m, v_loved) == EXIT_FAILURE)
