@@ -62,3 +62,14 @@ To get items off the queue, we do a
 They are combined into front_and_pop(), but there is some unnecessary copying.
 .PP
 
+If a program like jalview is allowed to work with the sequences, he may well take a line like
+.br
+.nf
+> abcde
+.fi
+and rewrite it like
+.br
+.nf
+>abcde
+.fi
+This code will expect the space in the sequence file and complain about a mismatch with the distance file. Workaround: Do not store full comments. Store stuff after the leading ">" and after discarding white space. This may break other programs that expect the ">" to be present.
