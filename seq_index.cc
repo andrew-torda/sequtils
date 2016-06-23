@@ -84,8 +84,8 @@ seq_index::fill (const char *fn)
 {
     infile.open (fn);
     if (!infile)
-        throw runtime_error (string("Open fail on ") + fname);
-
+        throw runtime_error (string("Open fail on ") + fn);
+    fname = fn;
     line_read lr;
     while (get_one(&lr)) {
         if (lr.first[0] == '>') {
