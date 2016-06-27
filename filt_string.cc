@@ -5,6 +5,7 @@
  *  2. use this filter to remove all the positions which are not set.
  */
 
+#include <cctype>
 #include <cerrno>
 #include <cstring>
 #include <exception>
@@ -19,6 +20,57 @@
 static const char GAPCHAR = '-';
 using namespace std;
 
+
+
+/* ---------------- rmv_white_start_end ----------------------
+ * Look for "> " at the start of a string and remove it.
+ * Remove trailing spaces.
+ * This modifies the string it is given.
+ * We could use regex, but
+ *  1. There are very few spaces to remove and
+ *  2. Regex support is so messy amongst the different compilers I have tried.
+ */
+string
+rmv_white_start_end (string &s)
+{
+    unsigned i, j;
+    if (s[0] == '>')
+        s.erase(0,1);
+    for (i = 0; i < s.length() && isspace(s[i]); i++);
+
+    if (i)
+        s.erase(0, i);
+
+    j = s.length() - 1;
+
+    while (isspace(s[j]))
+        s.erase(j--,1);
+    return s;
+}
+
+#ifdef check_white_start_end
+int
+main()
+{
+    vector<string> v;
+    v.push_back ("abcd");
+    v.push_back ("> efg"); 
+    v.push_back (">ac");
+    v.push_back (">ac ");
+    v.push_back (">   aa");
+    v.push_back (">   aa ");
+    v.push_back ("ab ");
+    v.push_back ("ab  ");
+    v.push_back ("ab   ");
+    for (vector<string>::iterator v_it = v.begin() ; v_it < v.end(); v_it++) {
+        cout << "start \""<< *v_it << "\" length: "<< v_it->length();
+        cout << "\" after strip \"" << rmv_white_start_end(*v_it) << "\"";
+        cout << " length: "<< v_it->length()<< '\n';
+    }
+    exit (EXIT_SUCCESS);
+}
+
+#endif /* check_white_start_end */
 
 /* ---------------- set_vec  ---------------------------------
  * Given a vector and a string, walk down the string. If a
