@@ -12,10 +12,9 @@
 class fseq;
 class seq_index
 {
-public:
+private:
     typedef std::pair<std::string, std::streampos> line_read;
     typedef std::unordered_map<std::string, std::streampos > seq_map; 
-private:
     std::ifstream infile; /* This is a real file handle. The file will
                       * be closed when the seq_index goes away */
     unsigned get_one (line_read *);
@@ -23,7 +22,11 @@ private:
     std::string fname; /* so we can print error messages with file name */
     int fill (const char *fname);
     std::vector<std::streampos> indices;
- public:
+#   ifdef want_seq_map_iterators
+        seq_map::const_iterator begin() { return s_map.begin();}
+        seq_map::const_iterator end() { return s_map.end();}
+#   endif /* want_seq_map_iterators */
+public:
     seq_index(){}
     seq_index (const char *fn) {fill (fn);}
     int operator ()(const char *fn) {return (fill (fn));}
@@ -32,8 +35,5 @@ private:
 #   endif /* want_get_seq_by_num */
     fseq get_seq_by_cmmt (const std::string &);
 
-    size_t size() { return s_map.size();}
     const std::string get_fname() { return fname;}
-    seq_map::const_iterator begin() { return s_map.begin();}
-    seq_map::const_iterator end() { return s_map.end();}
 };
