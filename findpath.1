@@ -30,7 +30,7 @@ comments (names) in a file like:
 .RE
 The
 .B \>
-is fasta format for introducing a comment. It must be present. The
+is fasta format for introducing a comment. The
 intention is that one cuts and pastes from the file containing the
 sequences.
 Now run
@@ -92,6 +92,19 @@ There is an interesting complication. Imagine you have proteins A, B, C and D, b
    A .... B.C .... D
 .fi
 The AB distance is seen and put in the graph. The CD distance is seen before BD. We might then end up with a path ABCD, whereas this is not really shorter than ABD. I am not sure if this problem is really fixed. There is a similar problem with identical distances. I think a fix to this might involve a sorting of each list of neighbours of each node. For the moment, there is one messy hack. As distances are sorted, they are compared by size. If two have the same size, they are compared lexicographically.
+
+.SH IMPLEMENTATION
+
+.SS String matching
+
+We have the names of two interesting sequences and look for them in the distance
+.RB ( .hat2 )
+file. They are compared after removing a leading
+.I <
+character and white space, as well as any trailing spaces. This means that
+.I ">\ abcde"
+will match
+.IR "abcde".
 .SH WHAT TO EXPECT
 You have a collection of a few thousand sequences and pick two of
 them. If you have 10^3 sequences, you have a distance matrix of 10^6/2
@@ -112,5 +125,3 @@ the path.
 .SH BUGS
 .IP "missing sequences"
 Using the -s option... If you have seed sequences, they are not in the original sequence file, since they are separate seed alignments. The program prints out a message that it cannot find the sequences and then seg faults anyway. Fix this.
-.IP name checking
-Checking and retrieving names should be done on the basis of strings with leading and trailing blanks removed.  A program like jalview removes blanks without asking us.
