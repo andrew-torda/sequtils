@@ -5,15 +5,18 @@
  * For each sequence, get an index into the file (tellg) for each sequence.
  */
 
+#include <cstring>
 #include <stdexcept>
 #include <fstream>
 #include <iostream>
 #include <istream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "bust.hh"
+#include "filt_string.hh"
 #include "fseq.hh"
 #include "mgetline.hh"
 #include "seq_index.hh"
@@ -40,11 +43,14 @@ seq_index::get_seq_by_num (unsigned ndx)
 /* ---------------- get_seq_by_cmmt --------------------------
  * Given the comment / name for a sequence, look up its
  * position in the file and return it.
+ * We store the string after removing leading and trailing
+ * white space, so we have to copy the string.
  */
 fseq
 seq_index::get_seq_by_cmmt (const string &s)
 {
-    seq_map::const_iterator it = s_map.find (s);
+    string t = s;
+    seq_map::const_iterator it = s_map.find (rmv_white_start_end(t));
     const string seek_fail = "Fail seeking on file ";
     const string seq_not_found = "Sequence not found in " + fname + ":\n";
     const string fail_reading  = "Fail reading sequence from: ";
@@ -62,6 +68,9 @@ seq_index::get_seq_by_cmmt (const string &s)
 }
 
 /* ---------------- get_one  ---------------------------------
+ * Read a line from the current input file. Return a pair in
+ * which the first element is our string. The second element
+ * is the streampos where the string starts.
  */
 unsigned
 seq_index::get_one (line_read *lr)
@@ -83,12 +92,15 @@ int
 seq_index::fill (const char *fn)
 {
     infile.open (fn);
-    if (!infile)
-        throw runtime_error (string("Open fail on ") + fn);
+    if (!infile) {
+        cerr << "Open fail on " << fn << ": "<< strerror (errno);
+        return EXIT_FAILURE;
+    }
     fname = fn;
     line_read lr;
     while (get_one(&lr)) {
         if (lr.first[0] == '>') {
+            rmv_white_start_end (lr.first);
             indices.push_back(lr.second);
             s_map.insert (lr);
         }
