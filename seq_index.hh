@@ -35,5 +35,5 @@ public:
 #   endif /* want_get_seq_by_num */
     fseq get_seq_by_cmmt (const std::string &);
 
-    const std::string get_fname() { return fname;}
+    const std::string get_fname() const { return fname;}
 };
