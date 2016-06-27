@@ -20,6 +20,7 @@
 
 #include "bust.hh"
 #include "distmat_rd.hh"
+#include "filt_string.hh"
 #include "fseq.hh"
 #include "graphmisc.hh"
 #include "pathprint.hh"
@@ -60,7 +61,8 @@ get_spec_seqs (const char *seq_fname, vector<string> &v_spec)
     string errmsg = __func__;
     ifstream infile (seq_fname);
     if (!infile) {
-        errmsg += ": opening " + string (seq_fname) + ": " + strerror(errno) + '\n';
+        errmsg += ": opening file \"" + string (seq_fname) + "\": "
+            + strerror(errno) + '\n';
         cerr << errmsg;
         return (0);
     }
@@ -84,17 +86,20 @@ get_special_seq_ndx (const vector<string> &v_cmt_vec,
                      const vector<string> &v_spec_seqs, vector<unsigned> &v_spec_ndx)
 {
     for (string t : v_spec_seqs) {
+        rmv_white_start_end (t);
         vector<string>::const_iterator v_it_cmt = v_cmt_vec.begin();
         for (unsigned i = 0; v_it_cmt < v_cmt_vec.end(); v_it_cmt++, i++) {
             string s = *v_it_cmt;
+            rmv_white_start_end (s);
             if (s == t) {
                 v_spec_ndx.push_back(i);
                 break;
             }
         }
-        if (v_it_cmt == v_cmt_vec.end())
-            cerr << __func__ << ": string not found: \""
-                 << t << "\" in the dist matrix file\n";
+        if (v_it_cmt == v_cmt_vec.end()) {
+            string e = "seq not found: \"" + t + "\" in the dist matrix file\n";
+            return (bust(__func__, e.c_str(), 0));
+        }
     }
     if (v_spec_ndx.size() != v_spec_seqs.size())
         return (bust (__func__, "v_spec_ndx and v_spec_seqs, different sizes", 0));
