@@ -59,6 +59,7 @@ read_info (ifstream &infile, const char *dist_fname){
             return 0;
         }
     } catch (const std::invalid_argument &e) {
+        cerr << e.what() << '\n';
         cerr << errmsg.str() << "looking for a single integer, got\n" + t + "\n" +
             __func__ + ": Check if " + dist_fname + " is really a distance matrix file\n";
         return 0;
