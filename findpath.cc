@@ -9,6 +9,7 @@
 
 #include <cstring> /* strerror */
 #include <fstream>
+#include <future>
 #include <iostream>
 #include <limits>
 #include <utility> /* used by seq_index */
@@ -586,6 +587,21 @@ get_loved (const component &cmpnt,  vector<bool> &v_loved)
     }
 }
 
+/* ---------------- build_s_i --------------------------------
+ * This will build the seq_index.
+ * It definitely does not have to be in its own function, but
+ * wrapping it like this make the syntax for packaged_task
+ * much easier.
+ */
+static seq_index
+build_s_i (const char *seq_in_fname)
+{
+    seq_index s_i;
+    if (s_i(seq_in_fname) == EXIT_FAILURE)
+        throw runtime_error (string ("broke reading from ") + seq_in_fname + '\n');
+    return s_i;
+}
+
 /* ---------------- main  ------------------------------------
  */
 int
@@ -623,10 +639,21 @@ main ( int argc, char *argv[])
     mat_in_fname  = argv[optind++];
     seq_in_fname = argv[optind++];
 
+    /* We may not need a seq_index, but if we do, we can start building it
+     * in the background */
+    thread s_i_thread;
+    packaged_task<seq_index (const char *)> build_s_i_tsk(build_s_i);
+    future<seq_index> s_i_fut = build_s_i_tsk.get_future();
+    if (seq_out_fname || path_seq_fname) { /* both of these might need a seq_index */
+          thread t (move(build_s_i_tsk), seq_in_fname);
+          s_i_thread.swap (t);
+    }
+    
     vector<string> v_spec_seqs;
 
     if (get_spec_seqs (special_seq_fname, v_spec_seqs) < 2) {
         cerr<< "Too few sequences found in "<< special_seq_fname <<'\n';
+        s_i_thread.join();
         return EXIT_FAILURE;
     }
     dist_mat d_m(mat_in_fname);
@@ -638,11 +665,8 @@ main ( int argc, char *argv[])
     component cmpnt = get_edges (v_spec_ndx, d_m.get_dist());
     cmpnt.describe (d_m);
 
-    seq_index s_i;
-    if (seq_out_fname || path_seq_fname) /* both of these might need a seq_index */
-        if (s_i(seq_in_fname) == EXIT_FAILURE)
-            return EXIT_FAILURE;
-
+    s_i_thread.join();
+    seq_index s_i = s_i_fut.get();
     {
         path path = dijkstra (cmpnt, d_m, v_spec_ndx); /* Outside of this little */
         path.print (nullptr, d_m);                     /* section, we do not need */
