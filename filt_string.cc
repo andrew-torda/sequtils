@@ -33,7 +33,7 @@ using namespace std;
 string
 rmv_white_start_end (string &s)
 {
-    unsigned i, j;
+    size_t i, j;
     if (s[0] == '>')
         s.erase(0,1);
     for (i = 0; i < s.length() && isspace(s[i]); i++);
@@ -97,13 +97,6 @@ set_vec (const std::string &s, vector<bool> &v)
 std::string
 squash_string_vec (std::string &s, const vector<bool> &v)
 {
-    class set_vec_except e;
-    if (s.size() != v.size()) {
-        e.s_siz = s.size();
-        e.v_siz = v.size();
-        throw e;
-    }
-
     if (v.size() != s.size()) {
         std::cerr << __func__<< ": programming mistake. String and vector sizes are different. "
                   << s.size() << " != "<<v.size()<< "\n";
@@ -159,16 +152,12 @@ int main ()
         cout<< __func__<< ": before squash\n" <<
             fs.get_seq()<< '\n';
         string s = fs.get_seq();
-        try {
-            fs.replace_seq (squash_string_vec (s, v));
-        } catch ( set_vec_except &e) {
-            cerr << "BOOMsize of sequence \n" << e.what() << "\nStopping";
+        s = squash_string_vec (s, v);
+        if ( ! s.length())
             return EXIT_FAILURE;
-        }
-                
-        
-        cout << __func__<< ": after\n" <<
-            fs.get_seq() << "\n";
+        fs.replace_seq (squash_string_vec (s, v));
+    }
+        cout << __func__<< ": after\n" << fs.get_seq() << "\n";
     }
 
 }
