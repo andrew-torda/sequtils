@@ -210,6 +210,8 @@ you are using sequences after the alignment, not before.\n";
         for (f_it = path_seqs.begin(); f_it != path_seqs.end(); f_it++) {
             string s = f_it->get_seq();
             squash_string_vec (s, v_c_used);
+            if (! s.length())
+                return EXIT_FAILURE;
             f_it->replace_seq(s);
         }
     }
