@@ -1,13 +1,21 @@
 /* Nov 2015
  */
-#include <string>
+
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <mutex>
+#include <string>
 
 #include "mgetline.hh"
 #include "prog_bug.hh"
 
+/* Currently, there is a race condition in the library version of
+ * getline(). This is a bit ugly, but we put a lock around the one
+ * offending line.
+ */
+
+static  std::mutex mtx;
 /* ---------------- mgetline ---------------------------------
  * This version of getline throws away anything after a comment
  * character
@@ -25,7 +33,9 @@ mc_getline ( std::ifstream& is, std::string& str, const char cmmt)
     do {
         is.clear();
         blank = false;
+        mtx.lock();
         is.getline (buf, BSIZ);  /* 99.9 % of the time, this is all we do. */
+        mtx.unlock();
         if (do_comment) {
             const size_t len = strlen (buf);
             const char *end = buf + len;
