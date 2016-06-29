@@ -640,15 +640,12 @@ main ( int argc, char *argv[])
     mat_in_fname  = argv[optind++];
     seq_in_fname = argv[optind++];
 
-    /* We may not need a seq_index, but if we do, we can start building it
-     * in the background */
-    thread s_i_thread;
+    /* If we need a seq_index, start building it in the background. */
     packaged_task<seq_index (const char *)> build_s_i_tsk(build_s_i);
     future<seq_index> s_i_fut = build_s_i_tsk.get_future();
-    if (seq_out_fname || path_seq_fname) { /* both of these might need a seq_index */
-          thread t (move(build_s_i_tsk), seq_in_fname);
-          s_i_thread.swap (t);
-    }
+    thread s_i_thread;
+    if (seq_out_fname || path_seq_fname) /* these require building a seq_index */
+        s_i_thread = thread (move(build_s_i_tsk), seq_in_fname);
     
     vector<string> v_spec_seqs;
 
