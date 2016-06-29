@@ -6,7 +6,7 @@
  */
 
 #include <cstring>
-#include <stdexcept>
+#include <cerrno>
 #include <fstream>
 #include <iostream>
 #include <istream>
@@ -21,6 +21,28 @@
 #include "mgetline.hh"
 #include "seq_index.hh"
 using namespace std;
+
+
+/* ---------------- seq_index copy constructor ---------------
+ * gcc 4.8 needs this. clang does not.
+ */
+seq_index::seq_index (const seq_index &s_in) {
+    s_map   = s_in.s_map;
+    indices = s_in.indices;
+    fname   = s_in.fname;
+    infile.open (s_in.fname);
+    if (!infile)
+        throw runtime_error (string (__func__) + ": open fail on " + fname + ": " +  strerror(errno));
+}
+seq_index& seq_index::operator= (seq_index &&s_in ) {
+    s_map   = move(s_in.s_map);
+    indices = move(s_in.indices);
+    fname   = move(s_in.fname);
+    infile.open (fname);
+    if (!infile)
+        throw runtime_error (string (__func__) + ": open fail on " + fname + ": " + strerror(errno));
+    return *this;
+}
 
 /* ---------------- get_seq_by_num ---------------------------
  * Given an index of a sequence, return just that sequence.
@@ -93,7 +115,7 @@ seq_index::fill (const char *fn)
 {
     infile.open (fn);
     if (!infile) {
-        cerr << "Open fail on " << fn << ": "<< strerror (errno);
+        cerr << __func__<< "Open fail on " << fn << ": "<< strerror (errno);
         return EXIT_FAILURE;
     }
     fname = fn;
