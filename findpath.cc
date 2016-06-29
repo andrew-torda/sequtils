@@ -24,6 +24,7 @@
 #include "filt_string.hh"
 #include "fseq.hh"
 #include "graphmisc.hh"
+#include "mgetline.hh"
 #include "pathprint.hh"
 #include "prog_bug.hh"
 #include "seq_index.hh"
@@ -69,7 +70,7 @@ get_spec_seqs (const char *seq_fname, vector<string> &v_spec)
     }
     string s;
     int nseq = 0;
-    while (getline (infile, s)) {
+    while (mgetline (infile, s)) {  /* this is not thread-safe */
         v_spec.push_back (s);
         nseq++;
     }
@@ -629,7 +630,7 @@ main ( int argc, char *argv[])
         cout<< "next arg "<< argv[index]<< '\n';
 #   endif /* debug_till_i_vomit */
 
-    if (seq_out_fname)
+    if (seq_out_fname || path_seq_fname || unloved_fname)
         n_arg++;
 
     if ((argc - optind) < n_arg)
@@ -664,9 +665,12 @@ main ( int argc, char *argv[])
         return EXIT_FAILURE;
     component cmpnt = get_edges (v_spec_ndx, d_m.get_dist());
     cmpnt.describe (d_m);
+    seq_index s_i;
+    if (s_i_thread.joinable()) {
+        s_i_thread.join();
+        s_i = s_i_fut.get();
+    }
 
-    s_i_thread.join();
-    seq_index s_i = s_i_fut.get();
     {
         path path = dijkstra (cmpnt, d_m, v_spec_ndx); /* Outside of this little */
         path.print (nullptr, d_m);                     /* section, we do not need */
@@ -680,7 +684,7 @@ main ( int argc, char *argv[])
     if (seq_out_fname || unloved_fname)
         get_loved (cmpnt, v_loved);
     if (seq_out_fname)
-        if (write_setof_seqs (seq_in_fname, seq_out_fname, d_m, v_loved, s_i) == EXIT_FAILURE)
+        if ( write_setof_seqs (seq_in_fname, seq_out_fname, d_m, v_loved, s_i) == EXIT_FAILURE)
             return EXIT_FAILURE;
     if (unloved_fname)
         if (write_unloved_seqs (unloved_fname, d_m, v_loved) == EXIT_FAILURE)
