@@ -1,4 +1,10 @@
 /* Nov 2015
+ * If I use gcc 4.8, there is a data race within the call to getline(),
+ * so there is a lock around it.
+ * With clang, there is no race condition, so I do not need the mutex.
+ * At the same time, I do not want to add more #ifdefs and make the
+ * code harder to read.
+ * The real solution will probably be to write our own getline.
  */
 
 #include <cstring>
@@ -15,7 +21,20 @@
  * offending line.
  */
 
+/* ---------------- statics and globals ----------------------
+ */
+
+#ifdef __clang__
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif /* clang */
+
 static  std::mutex mtx;
+
+#ifdef __clang__
+#    pragma clang diagnostic pop
+#endif /* clang */
+
 /* ---------------- mgetline ---------------------------------
  * This version of getline throws away anything after a comment
  * character
