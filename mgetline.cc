@@ -1,10 +1,12 @@
 /* Nov 2015
- * If I use gcc 4.8, there is a data race within the call to getline(),
+ * If I use gcc 4.8, there was a data race within the call to getline(),
  * so there is a lock around it.
  * With clang, there is no race condition, so I do not need the mutex.
  * At the same time, I do not want to add more #ifdefs and make the
  * code harder to read.
- * The real solution will probably be to write our own getline.
+ * I wrote line_by_bytes to call read() on each character. There are no
+ * race conditions and no need for mutexes, but it does seem a bit slow.
+ * To really improve it, I would call read() with a bit buffer.
  */
 
 #include <cstring>
@@ -35,14 +37,44 @@ static  std::mutex mtx;
 #    pragma clang diagnostic pop
 #endif /* clang */
 
+
+/* ---------------- line_by_bytes ----------------------------
+ * testing, testing
+ */
+static void
+line_by_bytes (std::ifstream &is, char *buf, const unsigned BSIZ)
+{
+    unsigned got = 0;
+    char c = '\0';
+
+    do {
+        is.read (&c, 1);
+        buf[got++] = c;
+    } while ((got < BSIZ - 1) && (! is.eof()) && (c != '\n'));
+
+    if (is.eof()) {
+        buf[ got - 1] = '\0';
+    } else if (c == '\n') {
+        buf [ got -1] = '\0'; /* this overwrites the newline */
+        ;
+    } else {  /* our buffer was too small */
+        buf[got] = '\0';
+        is.setstate (is.rdstate() | std::ifstream::failbit);   
+    }
+    
+    return;
+}
+
 /* ---------------- mgetline ---------------------------------
  * This version of getline throws away anything after a comment
  * character
+ * Usually, we will only have to read one line, but if necessary
+ * we go in the do loop and read on.
  */
 unsigned
 mc_getline ( std::ifstream& is, std::string& str, const char cmmt)
 {
-    static const unsigned BSIZ = 200;
+    static const unsigned BSIZ = 256;
     char buf[BSIZ];
     str.clear();
     bool blank = false;
@@ -52,9 +84,10 @@ mc_getline ( std::ifstream& is, std::string& str, const char cmmt)
     do {
         is.clear();
         blank = false;
-        mtx.lock();
-        is.getline (buf, BSIZ);  /* 99.9 % of the time, this is all we do. */
-        mtx.unlock();
+//      mtx.lock();
+//      is.getline (buf, BSIZ);  /* 99.9 % of the time, this is all we do. */
+//      mtx.unlock();
+        line_by_bytes(is, buf, BSIZ);
         if (do_comment) {
             const size_t len = strlen (buf);
             const char *end = buf + len;
