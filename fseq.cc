@@ -1,5 +1,5 @@
 /* 10 oct 2015 */
-static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.10 2016/05/05 13:08:12 torda Exp torda $";
+static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.11 2016/06/23 13:31:55 torda Exp torda $";
 
 #include <algorithm>
 #include <cctype>
@@ -29,14 +29,17 @@ using namespace std;
 /* ---------------- structures and constants ----------------- */
 static const char COMMENT = '>';
 
+/* ---------------- fseq::fill  ------------------------------
+ * The real initialisor/constructor for an fseq.
+ */
+
+#ifdef older_version
+
 static bool white (const char s)
 {
     return isspace (s);
 }
 
-/* ---------------- fseq::fill  ------------------------------
- * The real initialisor/constructor for an fseq.
- */
 bool
 fseq::fill (ifstream &infile, const size_t len_exp) {
     seq.clear();
@@ -77,6 +80,28 @@ fseq::fill (ifstream &infile, const size_t len_exp) {
     }
     return true;
 }
+#else /* Newer, faster version */
+bool
+fseq::fill (ifstream &infile, const size_t len_exp) {
+    bool strip;
+    getline_delim (infile, cmmt, '\n', strip = false);
+    if (cmmt.length() == 0)
+        return false;
+    getline_delim (infile, seq, COMMENT, strip = true);
+    if (seq.length() == 0)
+        return false;
+    if (len_exp) {
+        if ( seq.length() != len_exp) {
+            ostringstream convert;
+            convert << __func__<< ": expected seq length: " << len_exp
+                    << ", got " << seq.length()
+                    << " for sequence starting\n" << cmmt << "\n";
+            throw runtime_error (convert.str() );
+        }
+    }
+    return true;
+}
+#endif
 
 /* ---------------- fseq::fseq -------------------------------
  * Given an ifstream, try to return a sequence with comment
