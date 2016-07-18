@@ -635,11 +635,6 @@ main ( int argc, char *argv[])
     special_seq_fname     = argv[optind++];
     mat_in_fname  = argv[optind++];
     seq_in_fname = argv[optind++];
-    /*
-     * Empirically, it makes a difference (1/3 runtime on a contrived example).
-     * if we use pure c++ input and avoid sync'ing with the C library.
-     */
-    ios::sync_with_stdio(false);
 
     /* If we need a seq_index, start building it in the background. */
     packaged_task<seq_index (const char *)> build_s_i_tsk(build_s_i);
