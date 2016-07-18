@@ -625,10 +625,6 @@ main ( int argc, char *argv[])
             case 'u': unloved_fname  = optarg;                     break;
             case '?': return (usage(progname, "unknown option"));
             }
-#   ifdef debug_till_i_vomit
-    for (int index = optind; index < argc; index++)
-        cout<< "next arg "<< argv[index]<< '\n';
-#   endif /* debug_till_i_vomit */
 
     if (seq_out_fname || path_seq_fname || unloved_fname)
         n_arg++;
@@ -639,6 +635,11 @@ main ( int argc, char *argv[])
     special_seq_fname     = argv[optind++];
     mat_in_fname  = argv[optind++];
     seq_in_fname = argv[optind++];
+    /*
+     * Empirically, it makes a difference (1/3 runtime on a contrived example).
+     * if we use pure c++ input and avoid sync'ing with the C library.
+     */
+    ios::sync_with_stdio(false);
 
     /* If we need a seq_index, start building it in the background. */
     packaged_task<seq_index (const char *)> build_s_i_tsk(build_s_i);
@@ -671,10 +672,9 @@ main ( int argc, char *argv[])
     {
         path path = dijkstra (cmpnt, d_m, v_spec_ndx); /* Outside of this little */
         path.print (nullptr, d_m);                     /* section, we do not need */
-        if (path_seq_fname) {                          /* to store the path */
+        if (path_seq_fname)                            /* to store the path */
             if (path.write_seqs (path_seq_fname, d_m, s_i) == EXIT_FAILURE)
                 return EXIT_FAILURE;
-        }
     }
 
     vector<bool> v_loved (d_m.get_n_mem(), false);
