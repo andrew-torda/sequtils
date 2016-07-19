@@ -204,8 +204,9 @@ cleaner (t_queue<fseq> &cleaner_in_q, t_queue<fseq> &tag_rmvr_out_q,
         fseq f = cleaner_in_q.front_and_pop();
         in_n++;
         if (name_hash.find (f.get_cmmt()) == name_hash.end())  {
+            const bool rmv_white = false;
             name_hash.insert (f.get_cmmt());
-            f.clean(keep_gap);
+            f.clean(keep_gap, rmv_white);
             tag_rmvr_in_q.push (f);
             out_n++;
         } else {
