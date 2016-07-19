@@ -552,9 +552,10 @@ write_setof_seqs (const char *seq_in_fname, const char *seq_out_fname,
     try {
         for (unsigned i = 0; i < v_loved.size(); i++) {
             if (v_loved[i]) {
+                const bool keep_gap = false, rmv_white = false;
                 string s = d_m.get_cmt(i);
                 fseq fs = s_i.get_seq_by_cmmt(s);
-                fs.clean(false);
+                fs.clean(keep_gap, rmv_white);
                 fs.write (outfile, 60);
             }
         }
