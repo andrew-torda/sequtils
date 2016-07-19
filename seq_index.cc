@@ -109,6 +109,7 @@ seq_index::get_one (line_read *lr)
 
 
 /* ---------------- fill  ------------------------------------
+ * This should be rewritten to use the getline with delimiter
  */
 int
 seq_index::fill (const char *fn)
