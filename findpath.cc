@@ -533,6 +533,8 @@ dijkstra (const component &cmpnt, const dist_mat &d_m, const vector<unsigned> v_
 /* ---------------- write_setof_seqs -------------------------
  * Go to the output file and write the sequences that are
  * whose indices are given by the bool vector.
+ * Note, we cannot declare s_i const, since it jumps around in
+ * the file it reads from.
  */
 static int
 write_setof_seqs (const char *seq_in_fname, const char *seq_out_fname,
@@ -603,6 +605,24 @@ build_s_i (const char *seq_in_fname)
     return s_i;
 }
 
+/* ---------------- path_printing ----------------------------
+ * This prints sequences on the path to standard output.
+ * Putting it in a little function makes it easier to run it
+ * in a background thread.
+ */
+static int
+path_printing ( const component &cmpnt, const dist_mat &d_m, const vector<unsigned> v_spec_ndx,
+                seq_index &s_i, const char *path_seq_fname)
+{
+    path path = dijkstra (cmpnt, d_m, v_spec_ndx); /* Outside of this little */
+    path.print (nullptr, d_m);                     /* section, we do not need */
+    if (path_seq_fname)                            /* to store the path */
+        if (path.write_seqs (path_seq_fname, d_m, s_i) == EXIT_FAILURE)
+            return EXIT_FAILURE;
+    return EXIT_SUCCESS;
+}
+
+
 /* ---------------- main  ------------------------------------
  */
 int
@@ -664,22 +684,18 @@ main ( int argc, char *argv[])
         s_i = s_i_fut.get();
     }
 
-    {
-        path path = dijkstra (cmpnt, d_m, v_spec_ndx); /* Outside of this little */
-        path.print (nullptr, d_m);                     /* section, we do not need */
-        if (path_seq_fname)                            /* to store the path */
-            if (path.write_seqs (path_seq_fname, d_m, s_i) == EXIT_FAILURE)
-                return EXIT_FAILURE;
-    }
-
+    future<int> fut_wrt_path = async(std::launch::async, path_printing, cmpnt, d_m, v_spec_ndx, ref(s_i), path_seq_fname);
+    
     vector<bool> v_loved (d_m.get_n_mem(), false);
     if (seq_out_fname || unloved_fname)
         get_loved (cmpnt, v_loved);
-    if (seq_out_fname)
-        if ( write_setof_seqs (seq_in_fname, seq_out_fname, d_m, v_loved, s_i) == EXIT_FAILURE)
-            return EXIT_FAILURE;
     if (unloved_fname)
         if (write_unloved_seqs (unloved_fname, d_m, v_loved) == EXIT_FAILURE)
+            return EXIT_FAILURE;
+    if (fut_wrt_path.get() == EXIT_FAILURE)  /* this was the async thread */
+        return EXIT_FAILURE;
+    if (seq_out_fname)
+        if ( write_setof_seqs (seq_in_fname, seq_out_fname, d_m, v_loved, s_i) == EXIT_FAILURE)
             return EXIT_FAILURE;
     return EXIT_SUCCESS;
 }
