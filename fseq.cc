@@ -1,5 +1,5 @@
 /* 10 oct 2015 */
-static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.11 2016/06/23 13:31:55 torda Exp torda $";
+static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.12 2016/07/18 13:19:40 torda Exp torda $";
 
 #include <algorithm>
 #include <cctype>
@@ -117,14 +117,16 @@ fseq::fseq(ifstream &infile, const size_t len_exp) {
 /* ---------------- fseq::clean ------------------------------
  * Remove white spaces from a sequence.
  * If keep_gap is not set, remove gap characters.
+ * If check_white is true, remove white space
  */
 void
-fseq::clean (bool keep_gap)
+fseq::clean (const bool keep_gap, const bool remove_white)
 {
     const regex_choice::regex white("\\s");  /* Here is where we want */
     const regex_choice::regex gap("-");      /* to move to std library */
     string replace = "";              /* when we update gcc */
-    seq = regex_choice::regex_replace (seq, white, replace);
+    if (remove_white)
+        seq = regex_choice::regex_replace (seq, white, replace);
     if (! keep_gap)
         seq = regex_choice::regex_replace (seq, gap, replace);
 }

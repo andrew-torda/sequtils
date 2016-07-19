@@ -17,7 +17,7 @@ class fseq {
 public:
     fseq (std::ifstream &infile, const size_t len_exp);
     fseq () {}
-    void clean (bool keep_gap);
+    void clean (const bool keep_gap, const bool rmv_white);
     std::string const get_cmmt( void ) { return cmmt ;}
     std::string const get_seq( void )  { return seq ;}
     size_t get_size() { return seq.size() ;}
