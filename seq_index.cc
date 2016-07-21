@@ -108,6 +108,14 @@ seq_index::get_one (line_read *lr)
 }
 
 
+/*
+ * Here is how I want to change the logic.
+ * Read until the next '>'.
+ * Store the file position in lr->second
+ * Read until the end of the line. Store the string in lr->first.
+ * insert the string i the hash.
+ */
+
 /* ---------------- fill  ------------------------------------
  * This should be rewritten to use the getline with delimiter
  */
