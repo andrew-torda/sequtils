@@ -363,6 +363,10 @@ private:
     void add_index ( const unsigned node_label, const unsigned ndx);
     void insert_helper (const unsigned, const unsigned, float dist, const unsigned);
 };
+#ifdef __clang__
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored  "-Wfloat-equal"
+#endif /* __clang__ */
 
 /* ---------------- main_graph::insert_helper ----------------
  * This teeny little function takes a lot of the run time, presumably,
@@ -380,13 +384,18 @@ main_graph::insert_helper ( const unsigned label1, const unsigned label2,
 
     if (label1 == src_label) {         /* The node is on somebody's list. */
         src_dist_t &t = src_dist [ndx2];      /* Now check if we have the */
-        if (dist == 0.0)                                  /* source node. */
+        if (dist == float(0.0))                           /* source node. */
             dist += numeric_limits<float>::epsilon();
         t.dist = dist;
         t.label = label2;
     }
 }
+#ifdef __clang__
+#    pragma clang diagnostic pop
+#endif /* __clang__ */
 
+/* ---------------- main_graph::insert  ----------------------
+ */
 void
 main_graph::insert (const edge &e, const unsigned src_label)
 {

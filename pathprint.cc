@@ -66,6 +66,7 @@ path::path (const vector<src_dist_t> &src_dist,
 #ifdef __clang__
 #    pragma clang diagnostic push
 #    pragma clang diagnostic ignored  "-Wfloat-equal"
+#    pragma clang diagnostic ignored  "-Wdouble-promotion"
 #endif /* __clang__ */
 static const unsigned BSIZ = 512;
 /* ---------------- nice_string ------------------------------
