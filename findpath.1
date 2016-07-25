@@ -122,6 +122,14 @@ Most interesting: You can see where the biggest jump is. This is the
 pair of sequences whose evolutionary distance is largest and the
 alignment is most likely to have errors. This is the weakest link in
 the path.
+.SS Profiling
+The code spends too much time in mgetline(), reading character by character.
+.PP
+With valgrind / kcachegrind, I could not get a callgraph unless I used
+.nf
+valgrind --tool=callgrind --separate-threads=yes
+.fi
+I do not know if this has to do with specific valgrind/gcc versions.
 .SH BUGS
 .IP "missing sequences"
 Using the -s option... If you have seed sequences, they are not in the original sequence file, since they are separate seed alignments. The program prints out a message that it cannot find the sequences and then seg faults anyway. Fix this.

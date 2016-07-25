@@ -5,6 +5,7 @@
  * Write the output to a new file.
  */
 
+#include <cmath>
 #include <cstring>
 #include <fstream>
 #include <iomanip>
