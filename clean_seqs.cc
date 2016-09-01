@@ -65,7 +65,9 @@ static int
 usage ( const char *progname, const char *s)
 {
     static const char *u
-        = " [-n -s small_seq -t big_seq -g -i min_len -j max_len] [-w warning_tags] seq_tags_fname in_file out_file\n";
+        = " [-n -s small_seq -t big_seq -g -i min_len -j max_len] \
+[-k every_k\'th_sequence] \
+[-w warning_tags] seq_tags_fname in_file out_file\n";
     bust_void (progname, s, 0);
     return (bust ("Usage", progname, u, 0));
 }
@@ -299,12 +301,13 @@ read_get_stats (const char *in_fname, struct stats *stats, int *ret)
 static unsigned
 read_seqs (const char *in_fname, t_queue<fseq> &tag_rmvr_out_q,
            vector<seq_tag> v_seq_tag, vector<seq_tag> v_warn_tag,
-           const struct criteria *criteria,
+           const struct criteria *criteria, const unsigned k_every,
            const bool keep_gap, const unsigned short verbosity)
 {
     string errmsg = __func__;
     ifstream infile (in_fname);
     unsigned nseq = 0;
+    unsigned k = 1;
 
     if (!infile) {
         bust_void (__func__, "opening ", in_fname, ": ", strerror(errno), 0);
@@ -317,8 +320,12 @@ read_seqs (const char *in_fname, t_queue<fseq> &tag_rmvr_out_q,
     thread cln_thrd (cleaner, ref(cleaner_in_q), ref(tag_rmvr_out_q),
                      ref(v_seq_tag), ref(v_warn_tag), criteria, keep_gap, verbosity);
 
-    for ( fseq fs; fs.fill(infile, 0); nseq++)
-        cleaner_in_q.push(fs);
+    for ( fseq fs; fs.fill(infile, 0); nseq++) {
+        if (--k == 0 ) { /* Put every k'th sequence in queue */
+            k = k_every;
+            cleaner_in_q.push(fs);
+        }
+    }
     cleaner_in_q.close();
     cln_thrd.join();
     infile.close();
@@ -466,12 +473,14 @@ main (int argc, char *argv[])
 {
     struct stats stats;
     unsigned nseq;
+    unsigned k_every = 1;
     int c;
     const char *progname = argv[0],
                *small_seq_str = NULL,
                *big_seq_str = NULL,
                *in_fname,
                *out_fname,
+               *k_every_str = NULL,
                *min_seq_str = NULL,
                *max_seq_str = NULL,
                *seq_tags_fname,
@@ -482,12 +491,13 @@ main (int argc, char *argv[])
           eflag = false;
     struct criteria *crit_ptr = NULL;
     struct criteria criteria = {0, 0, 0, 0};
-    while ((c = getopt(argc, argv, "gi:j:ns:t:vw:")) != -1) {
+    while ((c = getopt(argc, argv, "gi:j:k:ns:t:vw:")) != -1) {
         switch (c) {
         case 'g': keep_gap = true;                                     break;
         case 'n': nothing_flag    = true;                              break;
         case 'i': min_seq_str     = optarg;                            break;
         case 'j': max_seq_str     = optarg;                            break;
+        case 'k': k_every_str     = optarg;                            break;
         case 's': small_seq_str   = optarg;                            break;
         case 't': big_seq_str     = optarg;                            break;
         case 'v': verbosity++;                                         break;
@@ -513,11 +523,23 @@ main (int argc, char *argv[])
             return EXIT_FAILURE;
         crit_ptr = & criteria; /* Use this later to say if criteria have been set */
     }
+
+    if (k_every_str) {
+        try {
+            k_every = unsigned (stoul (k_every_str, nullptr, 0));
+        } catch (const std::invalid_argument& ia) {
+            std::cerr << "Invalid argument: " << ia.what() <<
+                "\nwhen converting "<< k_every_str << " for every k\'th sequence\n";
+            return (EXIT_FAILURE);
+        }
+    }
     cout << progname << " with seq tags read from " << seq_tags_fname
          << "\nInput sequences from "<< in_fname << ".\nWriting output sequences to "
          << out_fname << "\n\n";
     if (warn_tags_fname)
         cout << "Unhappy strings for warnings will be read from " << warn_tags_fname << '\n';
+    if (k_every != 1)
+        cout << "Only every "<< k_every << "\'th sequence will be considered\n";
     if (keep_gap )
         cout << "Gaps will not be deleted from the input sequences\n";
     if (nothing_flag)
@@ -552,7 +574,7 @@ main (int argc, char *argv[])
                         verbosity, nothing_flag, &writer_ret);
 
     if ((nseq = read_seqs (in_fname, tag_rmvr_out_q, v_seq_tag,
-                           v_warn_tag, crit_ptr, keep_gap, verbosity)) == 0) {
+                           v_warn_tag, crit_ptr, k_every, keep_gap, verbosity)) == 0) {
         writer_thrd.join();
         return (bust(__func__, "no sequences in ", in_fname, 0));
     }
