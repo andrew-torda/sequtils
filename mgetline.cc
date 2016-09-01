@@ -139,13 +139,14 @@ void
 getline_delim (std::ifstream &is, std::string &s, const char c_delim, const bool strip)
 {
     static const unsigned bsiz = 1024;
-
+    s.clear();
     if (is.eof())
         return;
-    s.clear();
+
     do {
         char buf[bsiz];
         std::streamsize ngot = 0;
+        bool delim_found = false;
         is.read(buf, bsiz);
         std::streamsize n_inbuf;
         if (is.gcount())
@@ -154,14 +155,25 @@ getline_delim (std::ifstream &is, std::string &s, const char c_delim, const bool
             return;
         char *t;
         if (! strip) {
-            for ( t = buf; *t != c_delim && ngot < n_inbuf; t++)
+            for ( t = buf; ngot < n_inbuf; t++) {
+                if (*t == c_delim) {
+                    delim_found = true;
+                    break;
+                }
                 ngot++;
+            }
             s.append (buf, size_t (ngot));
         } else {                                 /* remove white spaces */
             char nowhite[bsiz];
             char *p = nowhite;
             unsigned to_copy = 0;
-            for ( t = buf; *t != c_delim && ngot < n_inbuf; t++) {
+            t = buf;
+
+            for ( t = buf; (ngot < n_inbuf) ; t++) {
+                if (*t == c_delim) {
+                    delim_found = true;
+                    break;
+                }
                 ngot++;
                 if ( ! isspace (*t)) {
                     *p++ = *t;
@@ -176,7 +188,7 @@ getline_delim (std::ifstream &is, std::string &s, const char c_delim, const bool
             is.clear();
             is.seekg (back, is.cur);
         }
-        if (*t == c_delim || is.eof())
+        if (delim_found || is.eof())
             return;
     } while (1);
 }
