@@ -36,6 +36,11 @@ residues will be thrown away.
 Sequences with more than
 .I N
 residues will be thrown away.
+.IP "-k n"
+Process every k'th sequence. So if you write,
+.I "-k 5"
+then you will get sequences 1, 6, 11, ...
+Note that all sequences are read for gathering statistics. This option affects the sequences put on the queue for cleaning and printing.
 .IP -n
 Do not write the output file.
 .IP "-s x"
@@ -52,7 +57,11 @@ Increase the verbosity. This option can appear multiple times.
 This is like the
 .I seq_tag_file
 described below, but patterns in this file are not removed. They are just noted on the standard output.
-
+.IP "the tag file"
+This is not an option, but it could happen that you do not want to remove sequence tags. In that case, use
+.I /dev/null
+as the tag file.
+.PP
 The
 .I \-i
 and
