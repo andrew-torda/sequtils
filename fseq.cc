@@ -1,5 +1,5 @@
 /* 10 oct 2015 */
-static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.12 2016/07/18 13:19:40 torda Exp torda $";
+static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.13 2016/07/19 10:18:46 torda Exp torda $";
 
 #include <algorithm>
 #include <cctype>
@@ -83,11 +83,11 @@ fseq::fill (ifstream &infile, const size_t len_exp) {
 #else /* Newer, faster version */
 bool
 fseq::fill (ifstream &infile, const size_t len_exp) {
-    bool strip;
-    getline_delim (infile, cmmt, '\n', strip = false);
+    bool strip, eat_delim;
+    getline_delim (infile, cmmt, eat_delim = true, '\n', strip = false);
     if (cmmt.length() == 0)
         return false;
-    getline_delim (infile, seq, COMMENT, strip = true);
+    getline_delim (infile, seq, eat_delim = false, COMMENT, strip = true);
     if (seq.length() == 0)
         return false;
     if (len_exp) {

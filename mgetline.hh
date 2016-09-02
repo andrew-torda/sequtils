@@ -7,6 +7,7 @@
 
 unsigned mgetline ( std::ifstream& is, std::string& str);
 unsigned mc_getline ( std::ifstream& is, std::string& str, const char cmmt);
-void getline_delim (std::ifstream &is, std::string &s, const char c_delim, const bool strip);
+void getline_delim (std::ifstream &is, std::string &s, const bool eat_delim,
+                    const char c_delim, const bool strip);
 
 #endif /* MGETLINE_HH */

@@ -134,9 +134,14 @@ mgetline ( std::ifstream& is, std::string& str)
  * Read from file until we see the delimiting character, c_delim.
  * Return the string, without the delimiter.
  * If strip is true, then remove white space. This uses a second buffer.
+ * If eat_delim is true, then discard the delimiter. This is probably
+ * what one wants for a newline. If, however, you are reading up to a
+ * delimiter like ">", then you probably want to keep the delimiter for
+ * the next read.
  */
 void
-getline_delim (std::ifstream &is, std::string &s, const char c_delim, const bool strip)
+getline_delim (std::ifstream &is, std::string &s, const bool eat_delim,
+               const char c_delim, const bool strip)
 {
     static const unsigned bsiz = 1024;
     s.clear();
@@ -184,7 +189,9 @@ getline_delim (std::ifstream &is, std::string &s, const char c_delim, const bool
         }
 
         if ((ngot + 1) < n_inbuf) {
-            std::streamoff back = ngot - n_inbuf + 1;
+            std::streamoff back = ngot - n_inbuf - 1;
+            if (!eat_delim)  /* should I say && delim_found ? */
+                back++;
             is.clear();
             is.seekg (back, is.cur);
         }
