@@ -3,50 +3,133 @@
 #  * -fsanitize=address from clang seems to break valgrind
 .POSIX:
 
-EXE_NAME=clean_msa
-OBJS = clean_msa.o distmat_rd.o fseq.o mgetline.o
+OPT=-g -O2
 
-# During debugging, one might want to put delays in and add delay.o to the list
+CXX=/work/torda/no_backup/gcc-6/bin/g++
+CXXFLAGS=-Wl,-rpath=/work/torda/no_backup/gcc-6/lib64 -Wall -Wextra -Wunused -Wuninitialized -std=c++11 -pedantic  -Wno-unknown-pragmas $(OPT) # -fsanitize=address  # -fsanitize=thread  -pie -fPIE
 
-#CXX=/usr/local/zbhtools/gcc/gcc-5.1.0/bin/g++
-CXX=g++
-CXXFLAGS=-std=c++11 -g -O3 -pedantic -lpthread #-fsanitize=address #-fsanitize=thread -pie -fPIC -fPIE
+#CXX=g++
+#CXXFLAGS=-Wall -Wextra -Wunused -Wuninitialized -std=c++11 -pedantic  -Wno-unknown-pragmas $(OPT) ## -fsanitize=thread  -pie -fPIE #  -fsanitize=address 
+LDFLAGS=$(CXXFLAGS) -lboost_regex
 
-#CXX=clang++
-#CXXFLAGS=-g -Weverything -pedantic -std=c++11 -lpthread 
+#CXX=/work/torda/no_backup/SolarisStudio12.5Beta-linux-x86-bin/bin/CC
+#CXXFLAGS=-std=c++11  $(OPT)
 
-CFLAGS=$(CXXFLAGS)
-$(EXE_NAME): $(OBJS)
-	$(CXX) -o $(EXE_NAME) $(CFLAGS) $(OBJS)
+# possibly useful -L/home/torda/junk/gperftools-master/.libs -lprofiler
+PARA_LIB = -lpthread
 
+#CLPATH=/work/torda/no_backup/clang+llvm-3.8.1-x86_64-opensuse13.2
+#CXX=$(CLPATH)/bin/clang++
+#CXXFLAGS=$(OPT)  -Weverything -pedantic -Wno-exit-time-destructors -Wno-c++98-compat  -Wno-format-n#onliteral -std=c++11 -stdlib=libc++ 
+#LDFLAGS=$(CXXFLAGS) -rpath $(CLPATH)/lib -stdlib=libc++ -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc -lpthread
+
+
+ALL_EXE = clean_seqs reduce findpath seqfrag_e
+# These can be compiled to free-standing executables, depending on some #defines,
+# but this is only for testing.
+TEST_EXE =  seq_index sym_mat check_white_start_end
+
+all: $(ALL_EXE)
+
+check_white_start_end: filt_string.cc
+	$(CXX) -o check_white_end -D check_white_start_end $(LDFLAGS) $<
+
+seqfrag_e:
+	cd seqfrag; make CXX=$(CXX) "CXXFLAGS_PASSED=$(CXXFLAGS)" "LDFLAGS_PASSED=$(LDFLAGS)" seqfrag
+
+REDUCE_OBJS = reduce.o bust.o distmat_rd.o fseq.o fseq_prop.o mgetline.o prog_bug.o
+reduce:$(REDUCE_OBJS)
+	$(CXX) -o $@ $(LDFLAGS) $(REDUCE_OBJS)
+
+FINDPATḦ_OBJS = bust.o findpath.o distmat_rd.o filt_string.o fseq.o \
+	mgetline.o pathprint.o prog_bug.o seq_index.o delay.o
+findpath: $(FINDPATḦ_OBJS)
+	$(CXX) -o $@ $(LDFLAGS) $(FINDPATḦ_OBJS)
+
+# This is not an interesting executable. It is just for testing the functions
+# in seq_index.cc.
+SEQ_INDEX_OBJS = fseq.o getopt.o seq_index.o mgetline.o prog_bug.o
+seq_index:$(SEQ_INDEX_OBJS)
+	$(CXX) -o $@ $(LDFLAGS) $(SEQ_INDEX_OBJS)
+
+SYM_MAT_OBJS = sym_mat.o
+sym_mat.o: sym_mat.c
+	$(CXX) -c sym_mat.c $(LDFLAGS) -Dcheck_me
+sym_mat:$(SŸM_MAT_OBJS)
+	$(CXX) -o $@ $(LDFLAGS) -Dcheck_me $(SYM_MAT_OBJS)
+
+FILT_OBJS = filt_string.o fseq.o mgetline.o prog_bug.o
+filt_string: $(FILT_OBJS)
+	$(CXX) -o $@ $(LDFLAGS) $(PARA_LIB)  $(FILT_OBJS)
+
+TQOBJS=tqtest.o delay.o
+tqtest: $(TQOBJS)
+	$(CXX) -o $@  $(LDFLAGS) $(TQOBJS)
+
+CLEAN_SEQS_OBJS=bust.o clean_seqs.o fseq.o mgetline.o prog_bug.o
+clean_seqs: $(CLEAN_SEQS_OBJS)
+	$(CXX) -o $@  $(LDFLAGS) $(PARA_LIB) $(CLEAN_SEQS_OBJS)
 
 clean:
-	rm -f $(OBJS) $(EXE_NAME) *~ core TAGS *.bak
+	rm -f *.o $(ALL_EXE) *~ core TAGS *.bak
+	cd seqfrag; make clean
 
 depend:
-	makedepend -Y *.cc *.hh
+	$(CXX)  -MM $(CXXFLAGS) *.cc *.hh > deps
+#       makedepend -Y -m *.cc *.hh
 
 tags:
 	etags *.cc *.hh
 
-valgrind:
-	make $(EXE_NAME)
+valgrind: $(EXE_NAME)
 	(cd /work/torda/people/inari/2jkf_oct15/merge;\
 	valgrind --leak-check=full  \
-        /home/torda/c/seq_work/clean_msa -a sacred -c first \
+        /home/torda/c/seq_work/reduce -a sacred \
+        -f -v -c first \
             merge_align.fa merge.fa.hat2 reduced_100.fa 100)
 
-helgrind:
-	make $(EXE_NAME)
+helgrind: $(EXE_NAME)
 	(cd /work/torda/people/inari/2jkf_oct15/merge;\
 	valgrind --tool=helgrind \
-           /home/torda/c/seq_work/clean_msa -a sacred -c first \
+           /home/torda/c/seq_work/reduce -a sacred -c first \
             merge_align.fa merge.fa.hat2 reduced_100.fa 100)
 #	valgrind --tool=helgrind $(EXE_NAME) example/big.fa x
 
 # DO NOT DELETE
-
-clean_msa.o: distmat_rd.hh fseq.hh mgetline.hh t_queue.hh
+bust.o: bust.cc bust.hh
+check_rmv.o: check_rmv.cc
+clean_seqs.o: clean_seqs.cc regex_prob.hh bust.hh fseq.hh mgetline.hh \
+ t_queue.hh t_queue.tcc
+delay.o: delay.cc delay.hh
+distmat_rd.o: distmat_rd.cc bust.hh distmat_rd.hh mgetline.hh prog_bug.hh
+filt_string.o: filt_string.cc filt_string.hh fseq.hh
+findpath.o: findpath.cc bust.hh distmat_rd.hh filt_string.hh fseq.hh \
+ graphmisc.hh mgetline.hh pathprint.hh prog_bug.hh seq_index.hh
+fseq.o: fseq.cc regex_prob.hh fseq.hh mgetline.hh
+fseq_prop.o: fseq_prop.cc fseq_prop.hh fseq.hh
+getline.o: getline.cc
+mgetline.o: mgetline.cc mgetline.hh prog_bug.hh
+pathprint.o: pathprint.cc bust.hh distmat_rd.hh filt_string.hh fseq.hh \
+ graphmisc.hh pathprint.hh seq_index.hh
+prog_bug.o: prog_bug.cc prog_bug.hh
+reduce.o: reduce.cc bust.hh distmat_rd.hh fseq.hh fseq_prop.hh \
+ mgetline.hh t_queue.hh t_queue.tcc
+seq_index.o: seq_index.cc bust.hh filt_string.hh fseq.hh mgetline.hh \
+ seq_index.hh
+sym_mat.o: sym_mat.cc sym_mat.hh
+tqtest.o: tqtest.cc t_queue.hh t_queue.tcc delay.hh
+bust2.o: bust2.hh
+bust.o: bust.hh
 delay.o: delay.hh
-distmat_rd.o: distmat_rd.hh mgetline.hh
-fseq.o: fseq.hh mgetline.hh
+distmat_rd.o: distmat_rd.hh
+filt_string.o: filt_string.hh
+fseq.o: fseq.hh
+fseq_prop.o: fseq_prop.hh
+graphmisc.o: graphmisc.hh
+mgetline.o: mgetline.hh
+pathprint.o: pathprint.hh
+prog_bug.o: prog_bug.hh
+regex_prob.o: regex_prob.hh
+seq_index.o: seq_index.hh
+sym_mat.o: sym_mat.hh
+t_queue.o: t_queue.hh t_queue.tcc t_queue.hh
