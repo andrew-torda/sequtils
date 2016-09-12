@@ -160,12 +160,11 @@ getline_delim (std::ifstream &is, std::string &s, const bool eat_delim,
             return;
         char *t;
         if (! strip) {
-            for ( t = buf; ngot < n_inbuf; t++) {
+            for ( t = buf; ngot < n_inbuf; t++, ngot++) {
                 if (*t == c_delim) {
                     delim_found = true;
                     break;
                 }
-                ngot++;
             }
             s.append (buf, size_t (ngot));
         } else {                                 /* remove white spaces */
@@ -189,9 +188,10 @@ getline_delim (std::ifstream &is, std::string &s, const bool eat_delim,
         }
 
         if ((ngot + 1) < n_inbuf) {
-            std::streamoff back = ngot - n_inbuf - 1;
-            if (!eat_delim)  /* should I say && delim_found ? */
+            std::streamoff back = ngot - n_inbuf;
+            if (eat_delim)  /* should I say && delim_found ? */
                 back++;
+
             is.clear();
             is.seekg (back, is.cur);
         }
