@@ -87,6 +87,7 @@ get_seq_list (struct seq_props & s_props, const char *in_fname, int *ret) {
     string errmsg = __func__;
     size_t len;
     ifstream infile (in_fname);
+    *ret = EXIT_SUCCESS;
     if (!infile) {
         *ret = EXIT_FAILURE;
         return (bust_void(__func__, "opening", in_fname, strerror(errno), 0));
@@ -104,15 +105,20 @@ get_seq_list (struct seq_props & s_props, const char *in_fname, int *ret) {
     {
         fseq fs;
         unsigned scount = 0;
-        for (; fs.fill(infile, len); scount++)
-            q_fs.push (fs);
+        try {
+            for (; fs.fill(infile, len); scount++)
+                q_fs.push (fs);
+        } catch (runtime_error &e) {
+            cerr<< "problem reading sequences\n"<< e.what()<<"\n";
+            goto clean_and_stop;
+            *ret = EXIT_FAILURE;
+        }
         cout << "read "<< scount << " seqs\n";
     }
-
+clean_and_stop:
     infile.close(); /* Stroustrup would just wait until it went out of scope */
     q_fs.close();
     t1.join();
-    *ret = EXIT_SUCCESS;
 }
 
 /* ---------------- get_sacred -------------------------------
