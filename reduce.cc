@@ -110,8 +110,8 @@ get_seq_list (struct seq_props & s_props, const char *in_fname, int *ret) {
                 q_fs.push (fs);
         } catch (runtime_error &e) {
             cerr<< "problem reading sequences\n"<< e.what()<<"\n";
-            goto clean_and_stop;
             *ret = EXIT_FAILURE;
+            goto clean_and_stop;
         }
         cout << "read "<< scount << " seqs\n";
     }
