@@ -12,6 +12,7 @@
 
 #include <cstring>
 #include <fstream>
+#include <iostream> /* only during debugging */
 #include <limits>
 #include <string>
 
@@ -133,7 +134,7 @@ mgetline ( std::ifstream& is, std::string& str)
 /* ---------------- getline_delim ----------------------------
  * Read from file until we see the delimiting character, c_delim.
  * Return the string, without the delimiter.
- * If strip is true, then remove white space. This uses a second buffer.
+ * If strip is true, remove white space. This uses a second buffer.
  * If eat_delim is true, then discard the delimiter. This is probably
  * what one wants for a newline. If, however, you are reading up to a
  * delimiter like ">", then you probably want to keep the delimiter for
@@ -173,12 +174,11 @@ getline_delim (std::ifstream &is, std::string &s, const bool eat_delim,
             unsigned to_copy = 0;
             t = buf;
 
-            for ( t = buf; (ngot < n_inbuf) ; t++) {
+            for ( t = buf; (ngot < n_inbuf) ; t++, ngot++) {
                 if (*t == c_delim) {
                     delim_found = true;
                     break;
                 }
-                ngot++;
                 if ( ! isspace (*t)) {
                     *p++ = *t;
                     to_copy++;
@@ -187,15 +187,16 @@ getline_delim (std::ifstream &is, std::string &s, const bool eat_delim,
             s.append(nowhite, to_copy);
         }
 
-        if ((ngot + 1) < n_inbuf) {
+        if (delim_found)  {
             std::streamoff back = ngot - n_inbuf;
-            if (eat_delim)  /* should I say && delim_found ? */
+            if (eat_delim)
                 back++;
 
             is.clear();
             is.seekg (back, is.cur);
+            return;
         }
-        if (delim_found || is.eof())
+        if (is.eof())
             return;
     } while (1);
 }
