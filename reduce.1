@@ -35,7 +35,13 @@ If using the random choice method for picking sequences to keep, set the random 
 .TP
 .B \-f
 When writing the reduced set of sequences, remove (filter out) any completely empty columns. Why ? If you have a big alignment, there are lots of gaps because just a few sequences had an insertion in a certain position. This means that in the reduced set, there are usually lots of completely empty positions. Perhaps this should be the default, rather than an option.
-
+.TP
+.B \-i
+Do not check the length of sequences as they are read up. Ignore the sequence length. This is for the unlikely case that you have distances, presumably calculated by a multiple sequence alignment, but you want to do the reduction on a file of unaligned sequences.
+.br
+This option is not compatible with the
+.B  \-f
+option.
 .TP 7
 \fB-s\fP
 Sequences containing "seed" will be removed. Mafft uses these as constraints on the alignment. They usually come from structural alignments.

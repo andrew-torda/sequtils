@@ -83,9 +83,10 @@ from_queue (t_queue <fseq> &q_fs, map<string, fseq_prop> &f_map)  {
  * here
  */
 static void
-get_seq_list (struct seq_props & s_props, const char *in_fname, int *ret) {
+get_seq_list (struct seq_props & s_props, const char *in_fname,
+              const bool ignore_len_check, int *ret) {
     string errmsg = __func__;
-    size_t len;
+    size_t len_check;
     ifstream infile (in_fname);
     *ret = EXIT_SUCCESS;
     if (!infile) {
@@ -95,18 +96,20 @@ get_seq_list (struct seq_props & s_props, const char *in_fname, int *ret) {
     { /* look at the first sequence, get the length, so we can check on */
         streampos pos = infile.tellg();             /* subsequent reads */
         fseq fs(infile, 0);
-        len = fs.get_seq().size();
+        len_check = fs.get_seq().size();
         infile.seekg (pos);
     }
-    s_props.len = len;
+    s_props.len = len_check;
     t_queue <fseq> q_fs(N_SEQBUF);
     thread t1 (from_queue, ref(q_fs), ref(s_props.f_map));
 
     {
         fseq fs;
         unsigned scount = 0;
+        if (ignore_len_check)
+            len_check = 0;
         try {
-            for (; fs.fill(infile, len); scount++)
+            for (; fs.fill(infile, len_check); scount++)
                 q_fs.push (fs);
         } catch (runtime_error &e) {
             cerr<< "problem reading sequences\n"<< e.what()<<"\n";
@@ -149,9 +152,9 @@ get_sacred (const char *sacred_fname, vector<string> &v_sacred, int *sacred_ret)
 static int
 check_lists ( const map<string, fseq_prop> &f_map, vector<string> &v_cmt)
 {
-    unsigned n = 0;
+    unsigned n = 1;
     const char *s1 = "\" in distmat file not found\nIt was sequence number ";
-    for (vector<string>::const_iterator it = v_cmt.begin(); it != v_cmt.end(); it++)
+    for (vector<string>::const_iterator it = v_cmt.begin(); it != v_cmt.end(); it++, n++)
         if (f_map.find(*it) == f_map.end())
             return(bust(__func__, "Sequence \"", it->c_str(), s1, to_string(n).c_str(), 0));
     return EXIT_SUCCESS;
@@ -411,13 +414,14 @@ main (int argc, char *argv[])
     bool seedflag   = false;
     bool filter_col = false;
     bool eflag      = false;
+    bool ignore_len_check = false;
     string choice_name, seed_str;
     unsigned long seed;
     default_random_engine r_engine{};
     const char *progname = argv[0];
     const char *sacred_fname = nullptr;
 
-    while ((c = getopt(argc, argv, "a:c:e:fsv")) != -1) {
+    while ((c = getopt(argc, argv, "a:c:e:fisv")) != -1) {
         switch (c) {
         case 'a':
             sacred_fname = optarg;                                     break;
@@ -427,6 +431,8 @@ main (int argc, char *argv[])
             seed_str = optarg;                                         break;
         case 'f':
             filter_col = true;                                         break;
+        case 'i':
+            ignore_len_check = true;                                   break;
         case 's':
             seedflag = true;                                           break;
         case 'v':
@@ -436,6 +442,12 @@ main (int argc, char *argv[])
         case '?':
             cerr << argv[0] << "Unknown option\n";       eflag = true; break;
         }
+    }
+    if (filter_col && ignore_len_check) {
+        cerr << "Both column filtering (-f) and ignore length check (-i)"
+             << " were turned on.\nYou cannot filter columns unless all sequences\n"
+             << "are the same length\n";
+        eflag++;
     }
     if (eflag)
         return (usage(progname, ""));
@@ -464,7 +476,7 @@ main (int argc, char *argv[])
 
     struct seq_props s_props;
     int gsl_ret;
-    thread gsl_thr (get_seq_list, ref(s_props), in_fname, &gsl_ret);
+    thread gsl_thr (get_seq_list, ref(s_props), in_fname, ignore_len_check, &gsl_ret);
 
     vector<string> v_sacred;
     int sacred_ret = EXIT_SUCCESS;
