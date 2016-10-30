@@ -5,13 +5,17 @@
 reduce \- clean and filter a multiple sequence alignment
 .SH SYNOPSIS
 .nf
-.B reduce \fB[\fP\fB-sv\fP\fB][\fB\-a \fI\sacred_file\fR ] in.msa in_distance_matrix.hat2 out.msa
+.B reduce \fB[\fP\fB-sv\fP\fB][\fB\-a \fI\sacred_file\fR ] in.msa in_distance_matrix.hat2 out.msa n_to_keep
 .SH DESCRIPTION
 We have a huge multiple sequence alignment that is too big for building a good tree. This program will read the distance matrix from mafft, visit pairs of sequences that are most similar and remove one member of each pair. If there are sequences which are especially interesting, you can declare them to be sacred. If they appear within a pair, they will not be removed.
 .PP
 From each pair, we can also choose the strategy for removing members. By default, we keep the first sequence from every pair, but this can be changed with the
 .B \-c
 option.
+.PP
+The program keeps removing sequences until there are no more than
+.I n_to_keep
+left.
 .SH OPTIONS
 .TP 7
 \fB-a\fP \fIfilename\fP
