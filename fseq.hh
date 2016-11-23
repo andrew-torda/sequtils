@@ -1,4 +1,6 @@
-/* 10 oct 2015 */
+/* 10 oct 2015
+ * Can only be included after <fstream>.
+ */
 
 #ifndef FSEQ_H
 #define FSEQ_H
