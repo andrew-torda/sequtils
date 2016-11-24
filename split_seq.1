@@ -1,0 +1,55 @@
+.TH reduce local 2015-10-22 local  "local doc"
+.hy 0 
+.if n .ad l 
+.SH NAME
+split_seq \- select residues by number from a sequence
+.SH SYNOPSIS
+.nf
+.BI "split_seq [ -o" "outname" "] [ -n ] [ -v ] " "in_seq n_start n_end"
+.SH DESCRIPTION
+.LP
+Read a sequence from
+.IR "in_seq" .
+Write out the residues ranging from
+.I n_start
+to
+.IR n_end .
+If
+.I n_end
+is the string
+.I end
+(in lower case) the subsequence will run until the end of the whole sequence.
+.SS Appending sequence numbers.
+By default, the start and end sequence numbers will be put into the comment in the sequence that is written out. If you want residues 100 to 200 from a sequence that looks like
+
+  > axabdde.1 activation protein [ homo sapiens ]
+
+The sequence that is written out will look like
+
+  > axabdde.1/100-200 activation protein [ homo sapiens ]
+
+The numbers will be written after the first word in the comment line. If the code cannot find anything that looks like a first word, it will just append the numbers to the end of the line.
+.SH OPTIONS
+.TP
+.B -n
+Normally a string should be appended to the comment in the sequence like
+
+  /123-456
+
+giving the selected residues. The
+.b -n
+option stops this.
+.TP
+.BI "-o " outfile
+Write the new sequence to a file called
+.I outfile
+, otherwise it goes to stdout.
+.TP
+.B -v
+Be more verbose. This option does not do anything yet.
+
+.BUGS
+.IP Sequence numbers
+I followed the style of
+.B jalview
+, but I can imagine it would be nicer to have some flexibility in where the additional information is written.
