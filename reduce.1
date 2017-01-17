@@ -63,15 +63,15 @@ There are a few threads here. Input files are read concurrently. This is a good 
 .SS Storage
 Sequences are read up and indexed by their comment field in a map structure. This was not such a good idea. It might have been better to use a simple array and helper arrays to allow us to handle files with re-ordered sequences.
 .SH BUGS
-.PP
+.IP * 
 To get items off the queue, we do a
 .nf
   front()
   pop()
 .fi
 They are combined into front_and_pop(), but there is some unnecessary copying.
-.PP
 
+.IP *
 If a program like jalview is allowed to work with the sequences, he may well take a line like
 .br
 .nf
@@ -83,3 +83,8 @@ and rewrite it like
 >abcde
 .fi
 This code will expect the space in the sequence file and complain about a mismatch with the distance file. Workaround: Do not store full comments. Store stuff after the leading ">" and after discarding white space. This may break other programs that expect the ">" to be present.
+
+.IP *
+The
+.B \-f
+option should probably be the default.
