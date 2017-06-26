@@ -85,9 +85,9 @@ main (int argc, char *argv[])
     while (( c = getopt (argc, argv, "+o:")) != -1) {
         switch (c) {
         case 'n':           /* do not add seq numbers to comment line */
-            add_num_flag = false;
+            add_num_flag = false;              break;
         case 'o':           /* output file name */
-            ofile_name = optarg;           break;
+            ofile_name = optarg;               break;
         case 'v':           /* verbosity */
             verbosity++;                       break;
         case '?':
@@ -109,15 +109,8 @@ main (int argc, char *argv[])
     else if (s_to_uint (argv[2], i_end)   == EXIT_FAILURE)
         return (bust(progname, "stopping", 0));
 
-    if (i_end < i_start)
+    if (i_end < i_start && !last_res_flag)
         swap (i_end, i_start);
-
-    cout << "I want to read from "<< infile_name <<
-        " with args "<< i_start << " and "<< i_end << '\n';
-    if (ofile_name)
-        cout << "writing to "<< ofile_name << '\n';
-    if (add_num_flag)
-        cout << "will append seq numbers to comments"<< '\n';
     
     ifstream infile (infile_name);
     
@@ -137,11 +130,17 @@ main (int argc, char *argv[])
     }
 
     fseq seq(infile, 0);
+    if (verbosity > 1)
+        cout << "Before cleaning, seq is\n"<< seq.get_seq() << endl <<
+            "size is "<< seq.get_size() << endl;
     {
         const bool keep_gap = false;
         const bool remove_white = true;
         seq.clean (keep_gap, remove_white);
     }
+    if (verbosity > 1)
+        cout << "After cleaning, seq is\n"<< seq.get_seq() << endl <<
+            "size is "<< seq.get_size() << endl;
     {
         const size_t ll = seq.get_size();
         if (verbosity > 0)
@@ -150,11 +149,17 @@ main (int argc, char *argv[])
             i_end = ll;
         if (ll == 0)
             return (bust(progname, "empty sequence in file ", infile_name, 0));
-        if ( (i_end - 1) > ll)
+        if ( (i_end) > ll)
             return (bust(progname, "asked for ", argv[2],
                          " residues, but sequence only has ", to_string(ll).c_str(),
                          " residues", 0));
     }
+    cout << "I want to read from "<< infile_name <<
+        " with args "<< i_start << " and "<< i_end << '\n';
+    if (ofile_name)
+        cout << "writing to "<< ofile_name << '\n';
+    if (add_num_flag)
+        cout << "will append seq numbers to comments"<< '\n';
 
     string s = seq.get_seq();
     s = s.substr(i_start - 1, i_end - i_start + 1);
