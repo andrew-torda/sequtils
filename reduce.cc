@@ -447,7 +447,7 @@ main (int argc, char *argv[])
         cerr << "Both column filtering (-f) and ignore length check (-i)"
              << " were turned on.\nYou cannot filter columns unless all sequences\n"
              << "are the same length\n";
-        eflag++;
+        eflag = true;
     }
     if (eflag)
         return (usage(progname, ""));
