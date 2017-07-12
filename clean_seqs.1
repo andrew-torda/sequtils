@@ -89,6 +89,17 @@ We use C++ 11 libraries (for threads), so we need a the flag in the Makefile for
 
 .SH BUGS
 .IP \(bu
+Duplicate sequences should be removed, even if they have different names. It would be nice to be able to give a list of sequences that should not be removed, even if they are part of a duplicate. There is a second problem. Checking for identical strings is not difficult - hash the sequence and put the hash in to a C++ hash. This lets us quickly find candidate copies. This is probably not enough. If sequence
+.I B
+is included in sequence
+.IR A ,
+we probably want to keep
+.IR A .
+Unfortunately, this means doing
+.I n(n-1)
+calls to a regexp function, on what could be long strings.
+
+.IP \(bu
 The code calls regex_search() followed by regex_replace(). I think we can get rid of the regex_replace() call and use string operations based on the match object.
 .IP \(bu
 As sequences are read, their comment fields are put in a hash to look for duplicates. We should
@@ -102,5 +113,5 @@ If there is rubbish in the sequence tags file, the error message is totally cryp
 .IP \(bu
 If we have the
 .B -n
-option, we do not write any sequences out, but and empty output file is still created.
+option, we do not write any sequences out, but an empty output file is still created.
 .RE
