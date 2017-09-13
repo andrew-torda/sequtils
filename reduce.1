@@ -16,6 +16,9 @@ option.
 The program keeps removing sequences until there are no more than
 .I n_to_keep
 left.
+.PP
+Be default, completely empty columns will be removed (see
+.BR \-f " flag".
 .SH OPTIONS
 .TP 7
 \fB-a\fP \fIfilename\fP
@@ -38,7 +41,10 @@ From each pair, choose one pseudo-randomly.
 If using the random choice method for picking sequences to keep, set the random seed with this option. If you do not do so, there will be a default value so you will get reproducibility from run to run.
 .TP
 .B \-f
-When writing the reduced set of sequences, remove (filter out) any completely empty columns. Why ? If you have a big alignment, there are lots of gaps because just a few sequences had an insertion in a certain position. This means that in the reduced set, there are usually lots of completely empty positions. Perhaps this should be the default, rather than an option.
+If you want, you can keep completely empty columns in an alignment. It is hard to see why this would be useful except for debugging.
+.TP
+.B \-g
+Remove gaps from sequences when they are written out. Use this option if you want to re-align the sequences after reducing the set.
 .TP
 .B \-i
 Do not check the length of sequences as they are read up. Ignore the sequence length. This is for the unlikely case that you have distances, presumably calculated by a multiple sequence alignment, but you want to do the reduction on a file of unaligned sequences.
