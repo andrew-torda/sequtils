@@ -16,6 +16,7 @@
 #include <limits>
 #include <string>
 
+#include "bust.hh"
 #include "mgetline.hh"
 #include "prog_bug.hh"
 
@@ -25,7 +26,8 @@
 
 /* ---------------- statics and globals ----------------------
  */
-
+static const char LINE_FINISHED = 0;  /* Return values from */
+static const char MORE_COMING   = 1;  /* line_by_bytes() */
 #ifdef __clang__
 #    pragma clang diagnostic push
 #    pragma clang diagnostic ignored "-Wglobal-constructors"
@@ -41,13 +43,15 @@
  * contention within libstdc's getline(). We can avoid the
  * slowness of the mutex, but this does very slow input,
  * character by character from the file pointer.
+ * What inspired me to use is.readstate() ? This function
+ * should return a value that says the line is not finished.
  */
-static void
+static char
 line_by_bytes (std::ifstream &is, char *buf, const unsigned BSIZ)
 {
     unsigned got = 0;
     char c = '\0';
-
+    char retval = LINE_FINISHED;
     do {
         is.read (&c, 1);
         buf[got++] = c;
@@ -59,10 +63,10 @@ line_by_bytes (std::ifstream &is, char *buf, const unsigned BSIZ)
         buf [ got -1] = '\0'; /* this overwrites the newline */
     } else {  /* our buffer was too small */
         buf[got] = '\0';
-        is.setstate (is.rdstate() | std::ifstream::failbit);   
+        retval = MORE_COMING;
     }
     
-    return;
+    return retval;
 }
 
 /* ---------------- mgetline ---------------------------------
@@ -79,9 +83,12 @@ mc_getline ( std::ifstream& is, std::string& str, const char cmmt)
     str.clear();
     bool blank = false;
     bool do_comment = false;
+    bool line_finished;
+    bool continuing = false;
     if (cmmt != '\0')
         do_comment = true;
     do {
+        line_finished = false;
         is.clear();
         blank = false;
 #       ifdef use_slow_locks
@@ -89,7 +96,10 @@ mc_getline ( std::ifstream& is, std::string& str, const char cmmt)
             is.getline (buf, BSIZ);
             mtx.unlock();
 #       else    /* use the slow character reading, but no locks */        
-            line_by_bytes(is, buf, BSIZ);
+            if (line_by_bytes(is, buf, BSIZ) == LINE_FINISHED)
+                line_finished = true;
+            else
+                continuing = true;
 #       endif /* use_slow_locks */    
         if (do_comment) {
             const size_t len = strlen (buf);
@@ -98,14 +108,14 @@ mc_getline ( std::ifstream& is, std::string& str, const char cmmt)
                 if (*b == cmmt) {
                     *b = '\0'; break; }
         }
-        str.append (buf);        /* In the very rare cases that the line is */
-        if (is.eof())            /* too long for the buffer, we will enter */
-            break;               /* this loop. */
-        if (is.bad())
+        str.append (buf);
+        if (line_finished && continuing)
+            break;
+        else if (is.bad())
             break; /* this should not happen. */
-        if (buf[0] == '\0')      /* Jump over blank lines */
+        else if (buf[0] == '\0')      /* Jump over blank lines */
             blank = true;
-    } while ( is.fail() || blank);
+    } while ( blank || line_finished == false);
 
     if (str.size() > std::numeric_limits<unsigned>::max())
         prog_bug (__FILE__, __LINE__, "Line too long");
