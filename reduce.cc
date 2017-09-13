@@ -312,10 +312,13 @@ squash (string &s, const vector<bool> &v_used) {
 
 /* ---------------- write_kept_seq ---------------------------
  * This is the final writing of sequences that we want to keep.
+ * filter_col means remove gaps that are present in every sequence.
+ * r_gaps_flag means remove all gaps.
  */
 static int
 write_kept_seq (const char *in_fname, const char *out_fname,
-                map<string, fseq_prop> &f_map, const vector<bool> &v_used)
+                map<string, fseq_prop> &f_map, const vector<bool> &v_used,
+                const bool r_gaps_flag)
 {
     ifstream in_file (in_fname);
     const char *o_fail_r = "open fail (reading) on ";
@@ -333,16 +336,23 @@ write_kept_seq (const char *in_fname, const char *out_fname,
     ofstream out_file (out_fname);
     if ( ! out_file)
         return (bust(__func__, o_fail_w, out_fname, ": ",  strerror(errno), 0));
-
+    if (r_gaps_flag && filter_col)
+        return (bust (__func__, "programming bug. Both rgaps and filter_col set", 0));
+    
     while (fs.fill (in_file, 0)) {
         const map<string, fseq_prop>::const_iterator missing = f_map.end();
         const map<string, fseq_prop>::const_iterator f1 = f_map.find(fs.get_cmmt());
         if (f1 != missing) {
             out_file << fs.get_cmmt() << '\n'; /* Write comment verbatim */
             size_t done = 0, to_go;   /* but the sequence could have long */
+            if (r_gaps_flag)
+                fs.clean(false, true); /* Remove gaps and white spaces */
             string s = fs.get_seq();  /* lines that should be split into pieces. */
             if (filter_col)           /* Remove columns that were not used */
                 squash (s, v_used);
+            else if (r_gaps_flag) {
+
+            }
             to_go = s.length();
             while (to_go) {
                 size_t this_line = SEQ_LINE_LEN;
@@ -411,9 +421,10 @@ main (int argc, char *argv[])
 {
     int c;
     short unsigned verbosity = 0;
-    bool seedflag   = false;
-    bool filter_col = false;
-    bool eflag      = false;
+    bool seedflag    = false;
+    bool filter_col  = true;
+    bool eflag       = false;
+    bool r_gaps_flag = false;
     bool ignore_len_check = false;
     string choice_name, seed_str;
     unsigned long seed;
@@ -421,7 +432,7 @@ main (int argc, char *argv[])
     const char *progname = argv[0];
     const char *sacred_fname = nullptr;
 
-    while ((c = getopt(argc, argv, "a:c:e:fisv")) != -1) {
+    while ((c = getopt(argc, argv, "a:c:e:fgisv")) != -1) {
         switch (c) {
         case 'a':
             sacred_fname = optarg;                                     break;
@@ -430,7 +441,9 @@ main (int argc, char *argv[])
         case 'e':
             seed_str = optarg;                                         break;
         case 'f':
-            filter_col = true;                                         break;
+            filter_col = false;                                        break;
+        case 'g':
+            r_gaps_flag = true;                                        break;
         case 'i':
             ignore_len_check = true;                                   break;
         case 's':
@@ -443,12 +456,17 @@ main (int argc, char *argv[])
             cerr << argv[0] << "Unknown option\n";       eflag = true; break;
         }
     }
+
+    if (r_gaps_flag && filter_col) // column filtering has no effect if we are
+        filter_col = false;        // removing gaps anyway
+
     if (filter_col && ignore_len_check) {
         cerr << "Both column filtering (-f) and ignore length check (-i)"
              << " were turned on.\nYou cannot filter columns unless all sequences\n"
              << "are the same length\n";
         eflag = true;
     }
+
     if (eflag)
         return (usage(progname, ""));
 
@@ -497,11 +515,11 @@ main (int argc, char *argv[])
     vector<dist_entry> v_dist; /* Big vector with sorted distance entries */
     vector<string> v_cmt;
 
-    try {
-        read_distmat (dist_fname, v_dist, v_cmt) ;
-    } catch (runtime_error &e) {
+    if ( read_distmat (dist_fname, v_dist, v_cmt) == EXIT_FAILURE) {
+        cerr << "Waiting on some threads to finish\n";
+        return (EXIT_FAILURE);
         gsl_thr.join(); sac_thr.join();
-        return (bust(progname, "error reading distance matrix", e.what(), 0));
+        return (bust(progname, "error reading distance matrix", 0));
     }
     gsl_thr.join();
     if (gsl_ret != EXIT_SUCCESS) {
@@ -536,7 +554,7 @@ main (int argc, char *argv[])
         v_used.resize(0);
     }
 
-    if (write_kept_seq (in_fname, out_fname, s_props.f_map, v_used) != EXIT_SUCCESS)
+    if (write_kept_seq (in_fname, out_fname, s_props.f_map, v_used, r_gaps_flag) != EXIT_SUCCESS)
         return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
