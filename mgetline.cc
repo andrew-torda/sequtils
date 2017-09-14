@@ -111,6 +111,8 @@ mc_getline ( std::ifstream& is, std::string& str, const char cmmt)
         str.append (buf);
         if (line_finished && continuing)
             break;
+        if (is.eof())
+            break;
         else if (is.bad())
             break; /* this should not happen. */
         else if (buf[0] == '\0')      /* Jump over blank lines */
