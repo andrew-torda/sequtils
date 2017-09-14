@@ -55,7 +55,7 @@ struct seq_props {
 static int usage ( const char *progname, const char *s)
 {
     static const char *u
-        = ": [-fsv -a sacred_file -c choice -e seed] mult_seq_align.msa \
+        = ": [-fgsv -a sacred_file -c choice -e seed] mult_seq_align.msa \
 dist_mat.hat2 outfile.msa n_to_keep";
     return (bust(progname, s, "\n", progname, u, 0));
 }
@@ -521,13 +521,16 @@ main (int argc, char *argv[])
         gsl_thr.join(); sac_thr.join();
         return (bust(progname, "error reading distance matrix", 0));
     }
+    if (verbosity > 0)
+        cout << "Finished reading distance matrix\n";
     gsl_thr.join();
     if (gsl_ret != EXIT_SUCCESS) {
         if (sacred_fname)
             sac_thr.join();
         return (bust(progname, "error in get_seq_list", 0));
     }
-
+    if (verbosity > 1)
+        cout << "get_seq_list thread finished\n";
     if (check_lists (s_props.f_map, v_cmt) == EXIT_FAILURE) {
         const char *o = "\", original sequences from \"";
         if (sacred_fname)
