@@ -22,7 +22,13 @@ Be default, completely empty columns will be removed (see
 .SH OPTIONS
 .TP 7
 \fB-a\fP \fIfilename\fP
-\fIfilename\fP is a list of sequences which are sacred and should not be deleted.
+\fIfilename\fP is a list of sequences which are sacred and should not be deleted. Sequences should be listed one per line. They should appear exactly as in the
+.I in.msa
+file, with the comment character like this
+.nf
+> AAX51857.1 putative profilin [Toxoplasma gondii]
+> NP_001015592.1 profilin-1 [Bos taurus]
+.fi
 
 .TP 7
 .BI \-c " method"
@@ -68,6 +74,27 @@ This is not fatal. It means we have to parse the names written by mafft at the s
 There are a few threads here. Input files are read concurrently. This is a good idea. The first time sequences are read, they are gobbled up and put in a queue where they are processed, gaps counted and put into a map object. This was fun, but may not save much time.
 .SS Storage
 Sequences are read up and indexed by their comment field in a map structure. This was not such a good idea. It might have been better to use a simple array and helper arrays to allow us to handle files with re-ordered sequences.
+
+.SH EXAMPLE
+You have calculated an alignment and put it in
+.IR "aligned_seqs.fa" .
+You do not care which sequences are kept within each pair, but you have two sequences which must be kept and you want to see them in later work. In a text editor, you make a file called
+.I sacred_seqs
+and it has a few lines like
+.nf
+> AAX51857.1 putative profilin [Toxoplasma gondii]
+> NP_001015592.1 profilin-1 [Bos taurus]
+.fi
+From an alignment with
+.I mafft
+, you have a distance matrix file with a name like
+.IR "aligned_seq.fa.hat2" .
+run
+.nf
+    reduce -a sacred_seqs aligned_seqs.fa aligned_seqs.fa.hat2 reduced_seqs.fa
+.fi
+and you will get the selected sequences in
+.IR reduced_seqs.fa .
 .SH BUGS
 .IP * 
 To get items off the queue, we do a
@@ -94,7 +121,5 @@ This code will expect the space in the sequence file and complain about a mismat
 The
 .B \-f
 option should probably be the default.
-.IP *
-We absolutely must add an option to remove gaps. This would let you do a rough alignment, select some sequences and have them saved without gaps for re-aligning.
 .IP *
 There should be another option for choosing the member of each pair to be kept. We should offer to pickt the longer or shorter. The choice is not obvious. Often the longer just has rubbish such as unrecognised introns, so we want the shorter. Unfortunately, the shorter might be a partial sequence.
