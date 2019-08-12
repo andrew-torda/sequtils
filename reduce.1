@@ -118,8 +118,4 @@ and rewrite it like
 This code will expect the space in the sequence file and complain about a mismatch with the distance file. Workaround: Do not store full comments. Store stuff after the leading ">" and after discarding white space. This may break other programs that expect the ">" to be present.
 
 .IP *
-The
-.B \-f
-option should probably be the default.
-.IP *
 There should be another option for choosing the member of each pair to be kept. We should offer to pickt the longer or shorter. The choice is not obvious. Often the longer just has rubbish such as unrecognised introns, so we want the shorter. Unfortunately, the shorter might be a partial sequence.
