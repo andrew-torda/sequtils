@@ -1,22 +1,18 @@
-# 8 oct 2015
+ # 8 oct 2015
 # my notes:
 #  * -fsanitize=address from clang seems to break valgrind
 .POSIX:
 
 OPT=-g -O2
 
-CXX=/work/torda/no_backup/gcc-6/bin/g++
-CXXFLAGS=-Wl,-rpath=/work/torda/no_backup/gcc-6/lib64 -Wall -Wextra -Wunused -Wuninitialized -std=c++11 -pedantic  -Wno-unknown-pragmas $(OPT) # -fsanitize=address  # -fsanitize=thread  -pie -fPIE
+LDFLAGS=-pthread
+PARA_LIB = -lpthread
 
-#CXX=g++
-#CXXFLAGS=-Wall -Wextra -Wunused -Wuninitialized -std=c++11 -pedantic  -Wno-unknown-pragmas $(OPT) ## -fsanitize=thread  -pie -fPIE #  -fsanitize=address 
-LDFLAGS=$(CXXFLAGS) -lboost_regex
-
-#CXX=/work/torda/no_backup/SolarisStudio12.5Beta-linux-x86-bin/bin/CC
-#CXXFLAGS=-std=c++11  $(OPT)
+CXX=g++
+CXXFLAGS=-Wall -Wextra -Wunused -Wuninitialized -std=c++11 -pedantic  -Wno-unknown-pragmas $(OPT) -pthread ## -fsanitize=thread  -pie -fPIE #  -fsanitize=address 
+LDFLAGS=$(CXXFLAGS) 
 
 # possibly useful -L/home/torda/junk/gperftools-master/.libs -lprofiler
-PARA_LIB = -lpthread
 
 #CLPATH=/work/torda/no_backup/clang+llvm-3.8.1-x86_64-opensuse13.2
 #CXX=$(CLPATH)/bin/clang++
@@ -24,7 +20,7 @@ PARA_LIB = -lpthread
 #LDFLAGS=$(CXXFLAGS) -rpath $(CLPATH)/lib -stdlib=libc++ -nodefaultlibs -lc++ -lc++abi -lm -lc -lgcc_s -lgcc -lpthread
 
 
-ALL_EXE = clean_seqs reduce findpath seqfrag_e
+ALL_EXE = clean_seqs reduce findpath seqfrag_e split_seq
 # These can be compiled to free-standing executables, depending on some #defines,
 # but this is only for testing.
 TEST_EXE =  seq_index sym_mat check_white_start_end
@@ -51,6 +47,10 @@ findpath: $(FINDPATḦ_OBJS)
 SEQ_INDEX_OBJS = fseq.o getopt.o seq_index.o mgetline.o prog_bug.o
 seq_index:$(SEQ_INDEX_OBJS)
 	$(CXX) -o $@ $(LDFLAGS) $(SEQ_INDEX_OBJS)
+
+SPLIT_SEQ_OBJS = bust.o split_seq.o fseq.o mgetline.o prog_bug.o
+split_seq:$(SPLIT_SEQ_OBJS)
+	$(CXX) -o $@ $(LDFLAGS) $(SPLIT_SEQ_OBJS)
 
 SYM_MAT_OBJS = sym_mat.o
 sym_mat.o: sym_mat.c
