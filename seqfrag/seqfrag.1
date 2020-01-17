@@ -1,0 +1,26 @@
+.TH seqfrag 1 ''''local''''
+.SH NAME
+seqfrag \- break a set of sequences into fragments of specified length
+.SH SYNOPSIS
+.B seqfrag
+.I infile.fa outfile len_frag
+.RB [ -help ]
+.SH DESCRIPTION
+.I seqfrag
+reads from
+.I infile.fa
+(a set of sequences in fasta format) and writes a set of fragments to
+.I outfile
+, one per line.
+.PP
+Each sequence gets a residue of type
+.I B
+at the start and type
+.I U
+at the end. This marks the N- and C-termini.
+.PP
+The intention is that we can run something like autoclass on the set of fragments.
+.SH OPTIONS
+I have not writen any options.
+.SH FILES
+.SH KNOWN BUGS
