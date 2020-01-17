@@ -1,5 +1,4 @@
 /* 10 oct 2015 */
-static const char __attribute__((unused)) *rcsid = "$Id: fseq.cc,v 1.13 2016/07/19 10:18:46 torda Exp torda $";
 
 #include <algorithm>
 #include <cctype>
