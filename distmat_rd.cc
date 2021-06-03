@@ -179,7 +179,12 @@ read_mafft_dist (ifstream &infile, vector<struct dist_entry> &v_dist,
 {
     const char *read_err = "Reading error, parsing floats in ";
     size_t ntmp = nseq * (nseq - 1) / 2;
-    v_dist.reserve (ntmp);
+    try {
+        v_dist.reserve (ntmp);
+    } catch (bad_alloc &e) {
+        auto stmp = std::to_string(nseq);
+        return (bust(__func__, "Broke reserving space for", stmp.c_str(), "seqs", e.what(), 0));
+    }
     try {
         for (unsigned i = 0; i < nseq ; i++) {
             for (unsigned j = i+1; j < nseq; j++) {
