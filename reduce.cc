@@ -486,7 +486,7 @@ main (int argc, char *argv[])
             seed = DFLT_SEED;
         r_engine.seed( seed);
     } catch (const std::invalid_argument& ia) {
-        return(bust(progname, "invalid argument: ", ia.what(), 0));
+        return(bust(progname, "invalid argument for num seqs: \"", to_keep_str, "\"", ia.what(), 0));
     }
     cout << progname << ": using " << in_fname << " as multiple seq alignment.\nDistance matrix from "
          << dist_fname << "\nWriting to " << out_fname
