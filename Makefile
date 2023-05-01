@@ -33,7 +33,7 @@ check_white_start_end: filt_string.cc
 seqfrag_e:
 	cd seqfrag; make CXX=$(CXX) "CXXFLAGS_PASSED=$(CXXFLAGS)" "LDFLAGS_PASSED=$(LDFLAGS)" seqfrag
 
-REDUCE_OBJS = reduce.o bust.o distmat_rd.o fseq.o fseq_prop.o mgetline.o prog_bug.o
+REDUCE_OBJS = reduce.o bust.o distmat_rd.o fseq.o fseq_prop.o mgetline.o plot_dist_reduce.o prog_bug.o
 reduce:$(REDUCE_OBJS)
 	$(CXX) -o $@ $(LDFLAGS) $(REDUCE_OBJS)
 

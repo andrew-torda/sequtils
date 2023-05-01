@@ -30,6 +30,7 @@
 #include "fseq.hh"
 #include "fseq_prop.hh"
 #include "mgetline.hh"
+#include "plot_dist_reduce.hh"
 #include "t_queue.hh"
 
 using namespace std;
@@ -256,7 +257,9 @@ choose_seq (const fseq_prop &f1, const fseq_prop &f2, decider_f *choice, default
 }
 
 /* ---------------- remove_seq -------------------------------
- * Walk down the list of distances, deciding who to delete.
+ * Walk down the list of distances (v_dist), deciding who to delete.
+ * We get the indices of the two sequence in ndx1 and ndx2. We look for these
+ * in f_map.
  */
 static void
 remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
@@ -266,19 +269,19 @@ remove_seq (map<string, fseq_prop> &f_map, vector<string> &v_cmt,
     vector<dist_entry>::const_iterator it = v_dist.begin();
     for ( ; f_map.size() > to_keep  && (it != v_dist.end()); it++) {
         const string &s1 = v_cmt[it->ndx1];
-        string &s2 = v_cmt[it->ndx2];
+        const string &s2 = v_cmt[it->ndx2];
         const map<string, fseq_prop>::const_iterator missing = f_map.end();
         const map<string, fseq_prop>::const_iterator f1      = f_map.find(s1);
         const map<string, fseq_prop>::const_iterator f2      = f_map.find(s2);
-        if ((f1 == missing) || (f2 == missing))
-            continue;
+        if ((f1 == missing) || (f2 == missing)) /* sequence already removed */
+            continue;                         /* from the list of sequences */
         switch (choose_seq(f1->second, f2->second, choice, r_engine)) {
         case NOBODY:
             continue;        /* break; otherwise compiler complains */
         case S_1:
-            f_map.erase(s1);    break;
+            distplot (f_map.size(), it->dist); f_map.erase (s1); break;
         case S_2:
-            f_map.erase(s2);    break;
+            distplot (f_map.size(), it->dist); f_map.erase(s2);  break;
         }
     }
 }
@@ -431,8 +434,9 @@ main (int argc, char *argv[])
     default_random_engine r_engine{};
     const char *progname = argv[0];
     const char *sacred_fname = nullptr;
+    const char *plot_fname = nullptr;
 
-    while ((c = getopt(argc, argv, "a:c:e:fgisv")) != -1) {
+    while ((c = getopt(argc, argv, "a:c:e:fgip:sv")) != -1) {
         switch (c) {
         case 'a':
             sacred_fname = optarg;                                     break;
@@ -446,6 +450,8 @@ main (int argc, char *argv[])
             r_gaps_flag = true;                                        break;
         case 'i':
             ignore_len_check = true;                                   break;
+        case 'p':
+            plot_fname = optarg;                                       break;
         case 's':
             seedflag = true;                                           break;
         case 'v':
@@ -478,6 +484,13 @@ main (int argc, char *argv[])
     const char *to_keep_str        = argv[optind++];
 
     unsigned long n_to_keep;
+    if (plot_fname)
+        try {
+            distplot_setup (plot_fname);
+        } catch (const std::exception& e) {
+            return (bust(progname, "opening ", plot_fname, " for writing:", e.what(), 0));
+        }
+            
     try {
         n_to_keep = stoul (to_keep_str);
         if (seed_str.length())
@@ -491,7 +504,8 @@ main (int argc, char *argv[])
     cout << progname << ": using " << in_fname << " as multiple seq alignment.\nDistance matrix from "
          << dist_fname << "\nWriting to " << out_fname
          << "\nKeeping " << n_to_keep << " of the sequences\n";
-
+    if (plot_fname)
+        cout << "Writing a plot file to "<< plot_fname;
     struct seq_props s_props;
     int gsl_ret;
     thread gsl_thr (get_seq_list, ref(s_props), in_fname, ignore_len_check, &gsl_ret);
@@ -548,7 +562,7 @@ main (int argc, char *argv[])
     }
 
     remove_seq (s_props.f_map, v_cmt, v_dist, n_to_keep, choice, r_engine);
-
+    distplot_close();
     vector<bool> v_used;
     if (filter_col) {
         v_used.assign (s_props.len, false);
