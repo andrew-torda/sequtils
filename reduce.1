@@ -58,6 +58,15 @@ Do not check the length of sequences as they are read up. Ignore the sequence le
 This option is not compatible with the
 .B  \-f
 option.
+.TP
+.BI \-p " plotfilename"
+Every time, before a sequence is removed, print out the number of sequences remaining and the corresponding distance from the distance matrix. You can then plot them. In a program like gnuplot, you might say,
+.in +4n
+.EX
+plot 'plotfilename' using 1:2
+.EE
+.in
+but you probably want to reverse the xrange, so it goes from biggest to smallest.
 .TP 7
 \fB-s\fP
 Sequences containing "seed" will be removed. Mafft uses these as constraints on the alignment. They usually come from structural alignments.
@@ -75,7 +84,7 @@ There are a few threads here. Input files are read concurrently. This is a good 
 .SS Storage
 Sequences are read up and indexed by their comment field in a map structure. This was not such a good idea. It might have been better to use a simple array and helper arrays to allow us to handle files with re-ordered sequences.
 
-.SH EXAMPLE
+.SH EXAMPLES
 You have calculated an alignment and put it in
 .IR "aligned_seqs.fa" .
 You do not care which sequences are kept within each pair, but you have two sequences which must be kept and you want to see them in later work. In a text editor, you make a file called
@@ -90,11 +99,21 @@ From an alignment with
 , you have a distance matrix file with a name like
 .IR "aligned_seq.fa.hat2" .
 run
-.nf
-    reduce -a sacred_seqs aligned_seqs.fa aligned_seqs.fa.hat2 reduced_seqs.fa
-.fi
-and you will get the selected sequences in
+.in +4n
+.EX
+reduce -a sacred_seqs aligned_seqs.fa aligned_seqs.fa.hat2 reduced_seqs.fa 1000
+.EE
+.in
+and you will get 1000 sequences in
 .IR reduced_seqs.fa .
+
+Now, imagine you do not know how many sequences you should keep. You see how the size of matrix entries goes up as you remove sequences. Then you might say
+.in +4n
+.EX
+reduce -p distplot.dat aligned_seqs.fa aligned_seqs.fa.hat2 /dev/null 1
+.EE
+.in
+You will get a file for plotting in \fIdistplot.dat\fR, and you will not get any sequences written out (no reduced set), because the output is put in /dev/null.
 .SH BUGS
 .IP * 
 To get items off the queue, we do a
