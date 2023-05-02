@@ -6,6 +6,7 @@
  */
 
 #include <fstream>
+#include <iomanip>
 #include "plot_dist_reduce.hh"
 
 static bool do_plot = false;
@@ -23,7 +24,7 @@ void
 distplot ( unsigned long nseq, float dist) {
     if (do_plot == false)
         return;
-    plot_file << nseq << " " << dist << "\n";
+    plot_file << nseq << " " << std::setprecision(6) << dist << "\n";
 }
 
 void
