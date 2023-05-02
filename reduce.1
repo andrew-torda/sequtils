@@ -60,13 +60,20 @@ This option is not compatible with the
 option.
 .TP
 .BI \-p " plotfilename"
-Every time, before a sequence is removed, print out the number of sequences remaining and the corresponding distance from the distance matrix. You can then plot them. In a program like gnuplot, you might say,
+Every time, before a sequence is removed, print out the number of sequences remaining and the corresponding distance from the distance matrix. You can then plot them. Output goes to
+.IR plotfilename .
+If the filename is \fI-\fR, output will go to standard output. To plot the data in a program like \fIgnuplot\fR, you might say,
 .in +4n
 .EX
-plot 'plotfilename' using 1:2
+plot plotfilename using 1:2
 .EE
 .in
 but you probably want to reverse the xrange, so it goes from biggest to smallest.
+.in +4n
+.EX
+set xrange [] reverse
+.EE
+.in
 .TP 7
 \fB-s\fP
 Sequences containing "seed" will be removed. Mafft uses these as constraints on the alignment. They usually come from structural alignments.

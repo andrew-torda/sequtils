@@ -505,7 +505,7 @@ main (int argc, char *argv[])
          << dist_fname << "\nWriting to " << out_fname
          << "\nKeeping " << n_to_keep << " of the sequences\n";
     if (plot_fname)
-        cout << "Writing a plot file to "<< plot_fname;
+        cout << "Writing a plot file to "<< plot_fname << "\n";
     struct seq_props s_props;
     int gsl_ret;
     thread gsl_thr (get_seq_list, ref(s_props), in_fname, ignore_len_check, &gsl_ret);
