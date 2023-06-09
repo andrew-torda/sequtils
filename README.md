@@ -29,7 +29,7 @@ There are a few, but for the moment, we concentrate on reduce, since it is refer
 
 ### Reduce
 
-Read the man page for a full explanation (`reduce.1`). The idea is to get the most evenly possible distributed set of sequences. If you have very closely related sequences, you only want to keep one of them. Otherwise, you have more than one representative over a very short evolutionary distances.
+Read the man page for a full explanation (`reduce.1`). The idea is to get the most evenly possible distributed set of sequences. If you have very closely related sequences, you only want to keep one of them. Otherwise, you have more than one representative over a very short evolutionary distances. Have a look at the diagram ![reduce_diag](./reduce_diagram.svg).
 
 We read a distance matrix (currently only from mafft) and put all the distances in a sorted list. We then walk down the list and from each pair of sequences, remove one of them. We keep going until you have a list of length *n*, the number you want to keep.
 
