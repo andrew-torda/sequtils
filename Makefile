@@ -84,14 +84,14 @@ tags:
 valgrind: $(EXE_NAME)
 	(cd /work/torda/people/inari/2jkf_oct15/merge;\
 	valgrind --leak-check=full  \
-        /home/torda/c/seq_work/reduce -a sacred \
+        /home/torda/c/seq_utils/reduce -a sacred \
         -f -v -c first \
             merge_align.fa merge.fa.hat2 reduced_100.fa 100)
 
 helgrind: $(EXE_NAME)
 	(cd /work/torda/people/inari/2jkf_oct15/merge;\
 	valgrind --tool=helgrind \
-           /home/torda/c/seq_work/reduce -a sacred -c first \
+           /home/torda/c/seq_utils/reduce -a sacred -c first \
             merge_align.fa merge.fa.hat2 reduced_100.fa 100)
 #	valgrind --tool=helgrind $(EXE_NAME) example/big.fa x
 
