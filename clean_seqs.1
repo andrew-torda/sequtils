@@ -85,7 +85,7 @@ Remove sequences according to what was decided in step 1.
 .PP
 For the moment, there is no plan to do this.
 .SH COMPILING AND LIBRARIES
-We use C++ 11 libraries (for threads), so we need a the flag in the Makefile for c11. We use C++ 11 libraries (for regular expressions) and found that gcc 4.8 supports everything except regexen. The boost library works, so we have to link with the option in the Makefile. This will go away if we upgrade from gcc 4.8 to 4.9 or higher. Strictly, the problem is not the compiler, but libstdc++. clang probably suppports regex's, so we should #ifdef the code and use its support if available.
+We use C++ 11 libraries (for threads), so we need a the flag in the Makefile for c11.
 
 .SH BUGS
 .IP \(bu
