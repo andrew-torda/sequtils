@@ -12,7 +12,7 @@
  *    - store this in a vector.
  * 3. Distances. These go into a flat list called dist_entry's.
  *    - this also goes into a single vector
- * If we have a problem, throw an error. 
+ * If we have a problem, throw an error.
  * We do this as a first call and then two object substantiations.
  * mafft lines look like:
    4. =_seed_2a2lA | 7 - 145
@@ -26,6 +26,7 @@
 #include <cstring>
 #include <iostream>
 #include <exception> // Probably also only during debugging
+#include <limits>
 #include <stdexcept>
 #include <sstream>
 #include <fstream>
@@ -53,7 +54,7 @@ read_info (ifstream &infile, const char *dist_fname){
     unsigned long i, nseq; /* excessive, but correct for stoul */
     string t;
     mgetline (infile, t);
-    try {        
+    try {
         if ((i = stoul(t)) != 1) {
             cerr << errmsg.str() << "expected 1 on first line, got:\n" + to_string(i) + string ("\n");
             return 0;
@@ -64,15 +65,14 @@ read_info (ifstream &infile, const char *dist_fname){
             __func__ + ": Check if " + dist_fname + " is really a distance matrix file\n";
         return 0;
     }
-    
-     
+
     mgetline (infile, t);
     nseq = stoul(t);
     if (nseq > 10000000) {
         cerr << errmsg.str() << ". Broken. nseq seems to be "<<nseq<<'\n';
         return 0;
     }
-    
+
     mgetline (infile, t); /* there is a float we do not use */
     if (nseq > numeric_limits<unsigned>::max())
         prog_bug (__FILE__, __LINE__, "too many sequences");
