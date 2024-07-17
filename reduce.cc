@@ -1,17 +1,15 @@
 /* 8 oct 2015
- * I have an MSA and want to
- *  - get rid of sequences which seem to have monster insertions
- *  - get rid of empty columns
+ * We have a set of sequences and a corresponding distance matrix
+ * created by mafft (.hat2 file). We want to find a selection of
+ * sequences which evenly covers sequence space. Sort the entries from
+ * the distance matrix. Starting from the two closest sequences, remove
+ * one from the pair. Keep going until the number of sequences is reduced
+ * to what we were asked to keep.
  * Overall scheme
  *   Read the MSA, but only store the comments and put them in a hash.
  *   Read a list of magic sequences, that must be kept.
  *   Read the distance matrix and build a list.
  *   Go back to the MSA, copy entries to keep in to the output file.
- * TODO
- * - very important - when we are given a bad sequence, the whole thing crashes !
- *   shut the queue down on error.
- * - add a check when reading sequences for HHHHH. If one is found, print out a warning.
- * - add an option to remove all gap characters and rewrite the sequences
  */
 
 #include <cerrno>
@@ -56,7 +54,7 @@ struct seq_props {
 static int usage ( const char *progname, const char *s)
 {
     static const char *u
-        = ": [-fgsv -a sacred_file -c choice -e seed] mult_seq_align.msa \
+        = ": [-fgsv -a sacred_file -c choice -e seed -p plot_data_filename] mult_seq_align.msa \
 dist_mat.hat2 outfile.msa n_to_keep";
     return (bust(progname, s, "\n", progname, u, 0));
 }
@@ -341,7 +339,7 @@ write_kept_seq (const char *in_fname, const char *out_fname,
         return (bust(__func__, o_fail_w, out_fname, ": ",  strerror(errno), 0));
     if (r_gaps_flag && filter_col)
         return (bust (__func__, "programming bug. Both rgaps and filter_col set", 0));
-    
+
     while (fs.fill (in_file, 0)) {
         const map<string, fseq_prop>::const_iterator missing = f_map.end();
         const map<string, fseq_prop>::const_iterator f1 = f_map.find(fs.get_cmmt());
